@@ -55,14 +55,17 @@ See PLAN.md for task tracking, STATE.md for system state, HANDOFF.md for session
 
 ## Known Issues
 
-- [Things that are broken or incomplete]
-- [Workarounds currently in place]
+- **Docker Desktop must be started manually** on this Windows dev box before any `docker` / `docker compose` command. The daemon isn't auto-started; commands fail with `error during connect ... docker_engine: The system cannot find the file specified` until it's running. If you see that error, stop and ask the user to launch Docker Desktop.
+- **Vitest is pinned to `^3.1.x`** (not 4.x). Vitest 4 ships a pre-release `rolldown` whose Windows native binding fails under pnpm. The pinning applies as a group: `vitest@^3.1.0`, `@vitejs/plugin-react@^4`, `vite-tsconfig-paths@^5`, `vite@^6`. Do **not** bump piecemeal.
+- **`vitest.config.mts`** (not `.ts`) — `vite-tsconfig-paths@5` is ESM-only and this package is not `"type": "module"`. The `.mts` extension forces ESM loading.
+- Next.js 16, React 19.2, Tailwind v4, ESLint v9 flat-config are current — not Next 15 as some earlier plan prose suggests.
 
 ## Lessons Learned
 
 Things Claude has got wrong on this project — don't repeat these:
 
-- [Add mistakes as they happen — this is the highest-leverage section]
+- **Plan docs drift from installed versions.** Before executing a multi-task plan, do a 2-minute pre-flight check: resolve `@latest` for each major named dep, walk the verify/test script graph for ordering bugs, confirm any cross-doc references actually exist. Flag deltas with the user before committing time.
+- **Don't install native-binding test tooling with `@latest` on Windows.** Pin the known-good combo above. See MISTAKES.md for the trail.
 
 <!-- 
 Keep this file concise. ~150 instructions max before Claude starts ignoring things.
