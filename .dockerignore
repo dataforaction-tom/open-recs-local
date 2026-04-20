@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.github
+.claude
+docs
+fixtures
+tests
+e2e
+coverage
+**/*.md
+!CLAUDE.md
+.env
+.env.*
+!.env.example
+Dockerfile
+docker-compose*.yml
