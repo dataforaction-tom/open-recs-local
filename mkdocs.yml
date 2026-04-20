@@ -1,0 +1,45 @@
+site_name: "open-recs-local documentation"
+site_description: "A local-first tool for tracking recommendations from inquiry reports, reviews, and evaluations."
+site_url: https://dataforaction-tom.github.io/open-recs-local/
+repo_url: https://github.com/dataforaction-tom/open-recs-local
+repo_name: dataforaction-tom/open-recs-local
+
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - User Guide: user-guide.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true
+
+exclude_docs: |
+  plans/
+  .docs-state.json
