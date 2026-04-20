@@ -1,215 +1,89 @@
-# Claude Code Project Template
+# open-recs-local
 
-A ready-to-use project structure for working effectively with [Claude Code](https://code.claude.com). Gives you state tracking, session handoffs, a self-improving mistakes log, slash commands, and subagents — so Claude stays on track across sessions and gets better over time.
+A local-first, open-source rebuild of [Open Recommendations](https://github.com/dataforaction-tom/open-recommendations) — a tool for tracking and making sense of the recommendations inside inquiry reports, reviews, and evaluations.
 
-Based on best practices from [Boris Cherny](https://www.threads.com/@boris_cherny/post/DTBVlMIkpcm) (creator of Claude Code), [Anthropic's internal teams](https://www-cdn.anthropic.com/58284b19e702b49db9302d5b6f135ad8871e7658.pdf), and the wider community.
+Runs on a Mac mini with no cloud dependencies, or as a multi-user hosted instance. Same codebase, same database schema, one env var to choose.
 
-## The Problem This Solves
+## What it does
 
-Claude Code starts every session with no memory. Without structure, you end up repeating context, re-explaining decisions, and watching Claude make the same mistakes across sessions. This template gives you a lightweight system for:
+- **Ingest reports.** Drop in a PDF. It's OCR'd, turned into canonical markdown, and per-page content is embedded for search.
+- **Extract recommendations.** An LLM pulls out each recommendation as its own record with a page anchor back to the source.
+- **Track progress.** Stakeholders add updates against each recommendation — notes, evidence links, progress ratings — building a time series of implementation over time.
+- **Search three ways.** Hybrid keyword + vector over recommendations, the same across source pages, and a chat interface that answers questions with inline citations back to the report.
+- **Visualise.** Recommendation networks by similarity, thematic taxonomies, progress dashboards.
 
-- **Persistent context** — CLAUDE.md files that tell Claude how your project works
-- **State tracking** — plans, state diagrams, and component status that survive between sessions
-- **Session continuity** — handoff documents so you can `/clear` or close a session and pick up cleanly
-- **Continuous improvement** — a mistakes log that feeds back into Claude's instructions, so errors don't recur
-- **Verification** — slash commands and subagents that help Claude check its own work
+Designed for charities, non-profits, regulators, and anyone else who ends up reading a lot of reports and wants to actually do something with them.
 
-## Quick Start
+## Two modes, one codebase
+
+| Mode | `APP_MODE` | Who it's for |
+|---|---|---|
+| **Local** | `local` | One person or one team, running on their own hardware. No sign-in. Everything is theirs. |
+| **Hosted** | `hosted` | Multi-user deployment with Better-auth, ownership requests, admin surfaces, and visibility controls. |
+
+The repository layer honours a `RepoContext` (who you are, what you can do) rather than relying on database row-level security — so the same business logic works in both modes without duplication.
+
+## Providers are swappable
+
+Everything cross-cutting — LLM, embedding, OCR, object storage, auth — goes through a provider interface selected via env var. Swap Ollama for Anthropic, Docling for Mistral OCR, or local filesystem for S3 without changing app code.
+
+Supported (or planned) providers:
+
+| Layer | Options |
+|---|---|
+| LLM | `openai-compatible` (Ollama, LM Studio, vLLM, OpenAI), `anthropic`, `mistral`, `fake` |
+| Embedding | `openai-compatible`, `voyage`, `fake` |
+| OCR | `mistral`, `docling`, `firecrawl`, `tesseract-pdf`, `fake` |
+| Storage | `fs`, `s3`, `fake` |
+| Auth | `local` (system user), `better-auth` |
+
+## Tech stack
+
+Next.js 16 (App Router) · TypeScript (strict) · Drizzle ORM · Postgres 16 + pgvector + tsvector · Zod at every boundary · pg-boss for jobs · SSE over Postgres `LISTEN/NOTIFY` · Tailwind v4 · Vitest + Testcontainers (real Postgres, no mocks).
+
+## Quick start
+
+### Run the stack
 
 ```bash
-# Clone the template (strips git history)
-npx degit dataforaction-tom/claude-code-template my-new-project
-
-# Set up
-cd my-new-project
-bash setup.sh
+cp .env.example .env
+docker compose up -d
 ```
 
-The setup script will:
+Postgres + app + worker come up. App serves on http://localhost:3000.
 
-1. Ask for your project name and description
-2. Stamp today's date into the tracking files
-3. Offer to install a global `~/.claude/CLAUDE.md` if you don't have one
-4. Add local/temporary files to `.gitignore`
-5. Optionally initialise a git repo
-6. Clean up after itself (removes `setup.sh` and the global template file)
+### Develop
 
-Then edit `CLAUDE.md` to fill in your project's architecture, commands, and standards, and `PLAN.md` to define what you're building.
-
-## What's Included
-
-```
-project/
-├── CLAUDE.md               ← Project config (committed to git)
-├── CLAUDE.local.md         ← Personal overrides (.gitignored)
-├── CLAUDE.global.md        ← Template for ~/.claude/CLAUDE.md (removed by setup.sh)
-├── PLAN.md                 ← Living plan with tasks and decisions
-├── STATE.md                ← State diagram and component status
-├── MISTAKES.md             ← Error log and lessons learned
-├── HANDOFF.md              ← Session handoff notes (.gitignored)
-├── setup.sh                ← One-time setup (removes itself)
-├── README.md               ← This file
-└── .claude/
-    ├── commands/
-    │   ├── catchup.md      ← /catchup — orient yourself at session start
-    │   ├── commit-push-pr.md ← /commit-push-pr — lint, test, commit, push
-    │   ├── handoff.md      ← /handoff — write session notes, update tracking
-    │   ├── reflect.md      ← /reflect — capture mistakes and patterns
-    │   ├── review.md       ← /review — self-check against standards
-    │   ├── status.md       ← /status — quick status from tracking files
-    │   └── techdebt.md     ← /techdebt — find and fix safe tech debt
-    ├── agents/
-    │   ├── code-reviewer.md    ← Staff engineer code review
-    │   ├── code-simplifier.md  ← Reduce complexity after a feature
-    │   ├── plan-reviewer.md    ← Catch gaps before building
-    │   └── verify-app.md       ← End-to-end verification
-    └── skills/
-        ├── README.md       ← How to create project-specific skills
-        └── docs-updater/
-            └── SKILL.md    ← Maintains user guide + changelog from git changes
+```bash
+pnpm install
+pnpm dev          # Next.js dev server
+pnpm verify       # typecheck + lint + test + build (run before you claim done)
 ```
 
-### Tracking Files
+### Database
 
-| File | Purpose | In git? |
-|------|---------|---------|
-| `CLAUDE.md` | Project architecture, commands, standards, lessons learned | Yes |
-| `CLAUDE.local.md` | Your personal environment and preferences | No |
-| `PLAN.md` | Tasks, decisions, open questions, scope | Yes |
-| `STATE.md` | Mermaid state diagram, component status table | Yes |
-| `MISTAKES.md` | What went wrong and what to do instead | Yes |
-| `HANDOFF.md` | What happened last session, what's next | No |
-
-### Slash Commands
-
-| Command | When to use |
-|---------|-------------|
-| `/catchup` | Start of session — reads git changes and tracking files, tells you where things stand |
-| `/status` | Quick check — what's done, in progress, and next |
-| `/review` | After completing work — checks against standards and MISTAKES.md, runs lint/build |
-| `/reflect` | End of session — captures mistakes and patterns, updates CLAUDE.md and MISTAKES.md |
-| `/handoff` | End of session — writes handoff notes, updates PLAN.md and STATE.md |
-| `/techdebt` | Housekeeping — finds and fixes safe technical debt |
-| `/commit-push-pr` | Ship it — lint, build, test, commit, push, optionally create PR |
-
-### Subagents
-
-Subagents run in their own context window, keeping your main session clean.
-
-| Agent | What it does |
-|-------|--------------|
-| `code-reviewer` | Reviews changes as a staff engineer — severity-rated findings |
-| `code-simplifier` | Simplifies code after a feature is complete without changing behaviour |
-| `plan-reviewer` | Reviews a plan before implementation — catches gaps, risks, over-engineering |
-| `verify-app` | Runs build, lint, tests, and checks features work end-to-end |
-
-### Skills
-
-Skills are invoked via natural language — Claude decides when to use them based on what you ask. See `.claude/skills/README.md` for how to create your own.
-
-| Skill | What it does |
-|-------|--------------|
-| `docs-updater` | Reviews git changes and updates end-user documentation — a user guide and structured changelog in markdown, ready for mkdocs hosting |
-
-## The Core Workflow
-
-### Starting a session
-
-```
-/catchup
+```bash
+pnpm db:generate  # regenerate migration SQL from schema changes
+pnpm db:migrate   # apply migrations
+pnpm db:seed      # insert taxonomy defaults (idempotent)
 ```
 
-This reads the git diff, handoff notes, plan, and state files, then gives you a concise summary of where things stand.
+## Project status
 
-### Working
+Early days. The foundation is in place, the user-facing features are not yet.
 
-For any non-trivial task, start in **plan mode** (`Shift+Tab` twice in Claude Code). Have Claude research and plan before writing code. For important plans, use the `plan-reviewer` subagent to get a second opinion before building.
+- **Phase 0** — Next.js + Tailwind + Vitest + env schema + CI + Docker — done
+- **Phase 1** — Drizzle schema + migrations + provider fakes + repository layer + seed — done
+- **Phase 2+** — real providers, parse/extract/embed pipeline, search, UI — in progress
 
-If Claude makes a mistake, tell it:
+See [`docs/plans/2026-04-19-open-recs-local-design.md`](docs/plans/2026-04-19-open-recs-local-design.md) for the full design and [`PLAN.md`](PLAN.md) for the phase roadmap.
 
-> "Add what just happened to MISTAKES.md so you don't repeat it."
+## Documentation
 
-If something goes wrong twice, don't keep fixing — `/clear` and start fresh with a better prompt.
-
-### Ending a session
-
-```
-/reflect
-/handoff
-/commit-push-pr
-```
-
-This captures learnings, writes handoff notes, updates the tracking files, and ships.
-
-### The Improvement Flywheel
-
-```
-Mistakes → MISTAKES.md → CLAUDE.md rules → Better agent → Fewer mistakes
-```
-
-Periodically review MISTAKES.md. When a pattern recurs, promote it to a permanent rule in CLAUDE.md. Delete the promoted entry from MISTAKES.md to keep things focused.
-
-## How the Files Fit Together
-
-Claude Code loads CLAUDE.md files automatically at the start of every session. Here's the hierarchy:
-
-```
-~/.claude/CLAUDE.md              ← Global: your preferences across ALL projects
-│
-├── project/CLAUDE.md            ← Project: architecture, commands, standards (git)
-│   ├── CLAUDE.local.md          ← Local: personal overrides (.gitignored)
-│   └── src/api/CLAUDE.md        ← Subdirectory: loaded on-demand when working there
-```
-
-**Loading rules:**
-- **Ancestors** always load at startup (Claude walks up the directory tree)
-- **Descendants** load lazily (only when Claude reads files in that directory)
-- **Siblings** never load (working in `frontend/` won't pull in `backend/CLAUDE.md`)
-
-The other tracking files (PLAN.md, STATE.md, etc.) are **not** auto-loaded — they're read by the slash commands when needed, which keeps Claude's context clean.
-
-## Key Principles
-
-These are the patterns that consistently produce the best results:
-
-**1. Give Claude a way to verify its work.**
-This is the single most important thing. Tests, builds, lints — whatever makes sense for your project. A verification loop alone will 2–3x the quality of output.
-
-**2. Keep CLAUDE.md concise.**
-~150 instructions is the practical limit. Beyond that, Claude starts ignoring things. If Claude already does something right without being told, don't add it.
-
-**3. Use `/clear` aggressively.**
-Between unrelated tasks. After two failed corrections. Context pollution is the primary failure mode, not Claude's capabilities.
-
-**4. Plan before you build.**
-Use plan mode for every non-trivial task. For big projects, plan conversationally first (in Claude.ai or plan mode), then execute.
-
-**5. Record mistakes immediately.**
-The correction you make today prevents the same mistake tomorrow.
-
-## Customising
-
-This template is a starting point. As you use it:
-
-- **Add project-specific verification** to the CLAUDE.md verification section
-- **Create skills** in `.claude/skills/` for tasks you repeat daily
-- **Add slash commands** in `.claude/commands/` for your common workflows
-- **Push improvements back** to this template repo when you find patterns that work across projects
-
-## Background
-
-For the full research and rationale behind this template, see the companion guide which covers CLAUDE.md mechanics, context management, and the source material this template draws from.
-
-## Further Reading
-
-- [Boris Cherny's personal workflow](https://www.threads.com/@boris_cherny/post/DTBVlMIkpcm) — The creator's 13-step setup
-- [Boris Cherny's team tips](https://www.threads.com/@boris_cherny/post/DUMZr4VElyb) — 10 tips from the Claude Code team
-- [How Anthropic Teams Use Claude Code](https://www-cdn.anthropic.com/58284b19e702b49db9302d5b6f135ad8871e7658.pdf) — Internal case studies from 10 departments
-- [Anthropic's official best practices](https://code.claude.com/docs/en/best-practices)
-- [Anthropic's CLAUDE.md guide](https://claude.com/blog/using-claude-md-files)
-- [The Complete Guide to CLAUDE.md](https://www.builder.io/blog/claude-md-guide) — Steve Krouse's walkthrough
-- [Claude Code Best Practices compilation](https://rosmur.github.io/claudecode-best-practices/) — Community aggregation
+- **Design doc:** [`docs/plans/2026-04-19-open-recs-local-design.md`](docs/plans/2026-04-19-open-recs-local-design.md)
+- **User guide:** [`docs/user-guide.md`](docs/user-guide.md)
+- **Changelog:** [`docs/changelog.md`](docs/changelog.md)
 
 ## Licence
 
-Do whatever you want with this. No attribution needed.
+MIT. See [`LICENSE`](LICENSE).
