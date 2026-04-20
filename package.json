@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/lib/db/migrate.ts",
+    "db:seed": "tsx src/scripts/seed.ts",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },
   "dependencies": {
