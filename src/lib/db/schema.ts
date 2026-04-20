@@ -9,9 +9,21 @@ import {
   boolean,
   vector,
   index,
+  customType,
 } from 'drizzle-orm/pg-core';
 
 export const EMBEDDING_DIM = 768 as const;
+
+/**
+ * Postgres `tsvector` column. Drizzle 0.45 has no native helper for tsvector,
+ * so we declare a custom type that emits `tsvector` in generated SQL and in
+ * drizzle-kit snapshots, avoiding the text/GIN mismatch.
+ */
+const tsvector = customType<{ data: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
 
 /** Status values for a source through the parse → extract → embed pipeline. */
 export const SOURCE_STATUS = ['pending', 'parsing', 'extracting', 'embedding', 'ready', 'failed'] as const;
@@ -28,7 +40,7 @@ export const sources = pgTable(
     isPrivate: boolean('is_private').notNull().default(false),
     status: text('status', { enum: SOURCE_STATUS }).notNull().default('pending'),
     ownerUserId: uuid('owner_user_id'),
-    tsv: text('tsv').generatedAlwaysAs(
+    tsv: tsvector('tsv').generatedAlwaysAs(
       sql`to_tsvector('english', coalesce(title, '') || ' ' || coalesce(canonical_markdown, ''))`,
     ),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
