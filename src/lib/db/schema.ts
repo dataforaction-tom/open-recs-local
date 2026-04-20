@@ -10,6 +10,7 @@ import {
   vector,
   index,
   customType,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 
 export const EMBEDDING_DIM = 768 as const;
@@ -148,3 +149,74 @@ export const progressUpdates = pgTable(
     byRecCreated: index('progress_updates_rec_created_idx').on(t.recommendationId, t.createdAt),
   }),
 );
+
+export const thematicAreas = pgTable('thematic_areas', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const recommendationsThematicAreas = pgTable(
+  'recommendations_thematic_areas',
+  {
+    recommendationId: uuid('recommendation_id')
+      .notNull()
+      .references(() => recommendations.id, { onDelete: 'cascade' }),
+    thematicAreaId: uuid('thematic_area_id')
+      .notNull()
+      .references(() => thematicAreas.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.recommendationId, t.thematicAreaId] }),
+  }),
+);
+
+export const evidenceTypes = pgTable('evidence_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+});
+
+export const progressRatings = pgTable('progress_ratings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  weight: integer('weight').notNull(),
+});
+
+export const OWNERSHIP_REQUEST_STATUS = ['pending', 'approved', 'rejected', 'withdrawn'] as const;
+export type OwnershipRequestStatus = (typeof OWNERSHIP_REQUEST_STATUS)[number];
+
+export const ownershipRequests = pgTable('ownership_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  sourceId: uuid('source_id')
+    .notNull()
+    .references(() => sources.id, { onDelete: 'cascade' }),
+  requesterEmail: text('requester_email').notNull(),
+  requesterName: text('requester_name'),
+  note: text('note'),
+  status: text('status', { enum: OWNERSHIP_REQUEST_STATUS }).notNull().default('pending'),
+  resolvedBy: uuid('resolved_by'),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const jobResults = pgTable('job_results', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  queue: text('queue').notNull(),
+  key: text('key').notNull(),
+  sourceId: uuid('source_id').references(() => sources.id, { onDelete: 'cascade' }),
+  stage: text('stage').notNull(),
+  status: text('status').notNull(),
+  detail: jsonb('detail').$type<Record<string, unknown>>().default({}).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const analyticsCache = pgTable('analytics_cache', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').$type<Record<string, unknown>>().notNull(),
+  computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
+});

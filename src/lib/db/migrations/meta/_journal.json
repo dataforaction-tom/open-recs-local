@@ -29,6 +29,13 @@
       "when": 1776715739904,
       "tag": "0003_chunky_mandroid",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1776715903669,
+      "tag": "0004_famous_photon",
+      "breakpoints": true
     }
   ]
 }
