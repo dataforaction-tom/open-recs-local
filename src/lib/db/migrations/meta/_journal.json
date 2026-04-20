@@ -22,6 +22,13 @@
       "when": 1776715606935,
       "tag": "0002_overjoyed_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776715739904,
+      "tag": "0003_chunky_mandroid",
+      "breakpoints": true
     }
   ]
 }

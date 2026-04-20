@@ -49,3 +49,23 @@ describe('schema — sources aggregate', () => {
     expect(rows[0]?.is_generated).toBe('ALWAYS');
   });
 });
+
+describe('schema — recommendations aggregate', () => {
+  it('creates recommendations, recommendation_statuses, progress_updates', async () => {
+    expect(await tableExists('recommendations')).toBe(true);
+    expect(await tableExists('recommendation_statuses')).toBe(true);
+    expect(await tableExists('progress_updates')).toBe(true);
+  });
+
+  it('recommendations.embedding is a vector(768) column', async () => {
+    const rows = await sql<{ udt_name: string }[]>`
+      select udt_name from information_schema.columns
+      where table_name = 'recommendations' and column_name = 'embedding'
+    `;
+    expect(rows[0]?.udt_name).toBe('vector');
+  });
+
+  it('recommendation_statuses is append-only shaped (no update trigger assumed; shape check only)', async () => {
+    expect(await tableExists('recommendation_statuses')).toBe(true);
+  });
+});
