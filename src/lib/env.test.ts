@@ -16,4 +16,12 @@ describe('loadEnv', () => {
       loadEnv({ APP_MODE: 'hosted', DATABASE_URL: 'postgres://x/y' }),
     ).toThrow(/BETTER_AUTH_SECRET/);
   });
+
+  it('defaults provider selectors to fake in local mode', () => {
+    const env = loadEnv({ APP_MODE: 'local', DATABASE_URL: 'postgres://x/y' });
+    expect(env.LLM_PROVIDER).toBe('fake');
+    expect(env.EMBEDDING_PROVIDER).toBe('fake');
+    expect(env.OCR_PROVIDER).toBe('fake');
+    expect(env.STORAGE_PROVIDER).toBe('fake');
+  });
 });
