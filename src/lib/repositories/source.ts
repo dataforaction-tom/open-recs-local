@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { sources } from '../db/schema';
+import { sourceFiles, sources } from '../db/schema';
 import { AuthorizationError, type RepoContext } from './types';
 
 type SourceRow = {
@@ -62,3 +62,29 @@ export async function findSourceBySlug(
   if (!row) return null;
   return canRead(ctx, row) ? row : null;
 }
+
+/**
+ * Insert a `source_files` row. Pipelines use this for the `original` upload
+ * plus any derived assets (page images, extracted attachments). Write access
+ * is the same as `createSource` — anyone who can create the parent can
+ * attach files to it.
+ */
+export async function createSourceFile(
+  ctx: RepoContext,
+  input: {
+    sourceId: string;
+    role: 'original' | 'page-image' | 'extracted-asset';
+    storageKey: string;
+    mimeType: string;
+    bytes: number;
+  },
+): Promise<{ id: string }> {
+  if (!canWrite(ctx)) throw new AuthorizationError('cannot create source file');
+  const [inserted] = await ctx.db
+    .insert(sourceFiles)
+    .values(input)
+    .returning({ id: sourceFiles.id });
+  if (!inserted) throw new Error('createSourceFile: no row returned');
+  return inserted;
+}
+
