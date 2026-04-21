@@ -8,6 +8,7 @@ import { localAuth } from './auth/local';
 import { createFakeLlm } from './llm/fake';
 import { createOpenAICompatLlm } from './llm/openai-compat';
 import { createFakeEmbedding } from './embedding/fake';
+import { createOpenAICompatEmbedding } from './embedding/openai-compat';
 import { createFakeOcr } from './ocr/fake';
 import { createFakeStorage } from './storage/fake';
 
@@ -55,6 +56,18 @@ function selectEmbedding(env: Env): EmbeddingProvider {
   switch (env.EMBEDDING_PROVIDER) {
     case 'fake':
       return createFakeEmbedding();
+    case 'openai-compatible': {
+      if (!env.EMBEDDING_BASE_URL || !env.EMBEDDING_MODEL) {
+        throw new Error(
+          'EMBEDDING_PROVIDER=openai-compatible requires EMBEDDING_BASE_URL and EMBEDDING_MODEL',
+        );
+      }
+      return createOpenAICompatEmbedding({
+        baseUrl: env.EMBEDDING_BASE_URL,
+        model: env.EMBEDDING_MODEL,
+        ...(env.EMBEDDING_API_KEY ? { apiKey: env.EMBEDDING_API_KEY } : {}),
+      });
+    }
     default:
       return notWired('embedding', env.EMBEDDING_PROVIDER);
   }

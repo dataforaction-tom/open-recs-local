@@ -21,6 +21,11 @@ const providerSelectors = {
   EMBEDDING_PROVIDER: z
     .enum(['fake', 'openai-compatible', 'voyage'])
     .default('fake'),
+  // Optional embedding connection settings. Required only when
+  // EMBEDDING_PROVIDER === 'openai-compatible' (enforced by cross-field refinement).
+  EMBEDDING_BASE_URL: z.string().url().optional(),
+  EMBEDDING_API_KEY: z.string().optional(),
+  EMBEDDING_MODEL: z.string().optional(),
   OCR_PROVIDER: z
     .enum(['fake', 'mistral', 'docling', 'firecrawl', 'tesseract-pdf'])
     .default('fake'),
@@ -60,6 +65,25 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['LLM_MODEL'],
         message: 'LLM_MODEL is required when LLM_PROVIDER=openai-compatible',
+      });
+    }
+  })
+  .superRefine((env, ctx) => {
+    if (env.EMBEDDING_PROVIDER !== 'openai-compatible') return;
+    if (!env.EMBEDDING_BASE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMBEDDING_BASE_URL'],
+        message:
+          'EMBEDDING_BASE_URL is required when EMBEDDING_PROVIDER=openai-compatible',
+      });
+    }
+    if (!env.EMBEDDING_MODEL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMBEDDING_MODEL'],
+        message:
+          'EMBEDDING_MODEL is required when EMBEDDING_PROVIDER=openai-compatible',
       });
     }
   });
