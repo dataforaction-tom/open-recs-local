@@ -29,6 +29,8 @@ const providerSelectors = {
   OCR_PROVIDER: z
     .enum(['fake', 'mistral', 'docling', 'firecrawl', 'tesseract-pdf'])
     .default('fake'),
+  // Required only when OCR_PROVIDER === 'docling' (cross-field refinement below).
+  DOCLING_BASE_URL: z.string().url().optional(),
   STORAGE_PROVIDER: z.enum(['fs', 's3', 'fake']).default('fake'),
 };
 
@@ -84,6 +86,16 @@ export const envSchema = z
         path: ['EMBEDDING_MODEL'],
         message:
           'EMBEDDING_MODEL is required when EMBEDDING_PROVIDER=openai-compatible',
+      });
+    }
+  })
+  .superRefine((env, ctx) => {
+    if (env.OCR_PROVIDER !== 'docling') return;
+    if (!env.DOCLING_BASE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DOCLING_BASE_URL'],
+        message: 'DOCLING_BASE_URL is required when OCR_PROVIDER=docling',
       });
     }
   });

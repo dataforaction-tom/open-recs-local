@@ -1,0 +1,31 @@
+# Overlay that adds a Docling-serve side-car and points the app + worker at it.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.docling.yml up -d
+services:
+  docling:
+    image: ghcr.io/docling-project/docling-serve:latest
+    restart: unless-stopped
+    ports:
+      - '5001:5001'
+    environment:
+      DOCLING_SERVE_ENABLE_UI: 'false'
+
+  app:
+    environment:
+      OCR_PROVIDER: docling
+      DOCLING_BASE_URL: http://docling:5001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      docling:
+        condition: service_started
+
+  worker:
+    environment:
+      OCR_PROVIDER: docling
+      DOCLING_BASE_URL: http://docling:5001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      docling:
+        condition: service_started

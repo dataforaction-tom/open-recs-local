@@ -10,6 +10,7 @@ import { createOpenAICompatLlm } from './llm/openai-compat';
 import { createFakeEmbedding } from './embedding/fake';
 import { createOpenAICompatEmbedding } from './embedding/openai-compat';
 import { createFakeOcr } from './ocr/fake';
+import { createDoclingOcr } from './ocr/docling';
 import { createFakeStorage } from './storage/fake';
 
 export type Providers = {
@@ -77,6 +78,12 @@ function selectOcr(env: Env): OcrProvider {
   switch (env.OCR_PROVIDER) {
     case 'fake':
       return createFakeOcr();
+    case 'docling': {
+      if (!env.DOCLING_BASE_URL) {
+        throw new Error('OCR_PROVIDER=docling requires DOCLING_BASE_URL');
+      }
+      return createDoclingOcr({ baseUrl: env.DOCLING_BASE_URL });
+    }
     default:
       return notWired('ocr', env.OCR_PROVIDER);
   }

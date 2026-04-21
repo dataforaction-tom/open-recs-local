@@ -62,6 +62,16 @@ The app uses three kinds of AI: an LLM (for extracting recommendations and answe
 
 Each provider has its own set of keys, model names, and base URLs — see `.env.example` for the complete list.
 
+#### Using Docling OCR
+
+Docling runs as a local side-car container — no API key, no data leaving your machine. To opt in, start the stack with the Docling compose overlay:
+
+```
+docker compose -f docker-compose.yml -f docker-compose.docling.yml up -d
+```
+
+The overlay adds a `docling` service (published on port 5001) and sets `OCR_PROVIDER=docling` plus `DOCLING_BASE_URL=http://docling:5001` on the app and worker. First-time startup pulls a multi-gigabyte image, so the initial `up` is slow.
+
 ### Storage
 
 By default, uploaded files are stored in a Docker volume on your machine. If you'd rather use object storage (for backups, or to share a hosted instance across multiple app containers), set `STORAGE_PROVIDER=s3` and supply the S3 credentials.
