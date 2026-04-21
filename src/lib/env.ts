@@ -12,6 +12,12 @@ const providerSelectors = {
   LLM_PROVIDER: z
     .enum(['fake', 'openai-compatible', 'anthropic', 'mistral'])
     .default('fake'),
+  // Optional LLM connection settings. Required only when LLM_PROVIDER === 'openai-compatible'
+  // (enforced by a cross-field refinement on the discriminated union below). Leaving them
+  // permissive here keeps the `fake` default usable with no extra env.
+  LLM_BASE_URL: z.string().url().optional(),
+  LLM_API_KEY: z.string().optional(),
+  LLM_MODEL: z.string().optional(),
   EMBEDDING_PROVIDER: z
     .enum(['fake', 'openai-compatible', 'voyage'])
     .default('fake'),
@@ -35,7 +41,28 @@ const hosted = z.object({
   ...providerSelectors,
 });
 
-export const envSchema = z.discriminatedUnion('APP_MODE', [local, hosted]);
+// Cross-field refinement: if the caller selects the openai-compatible LLM adapter
+// they must also supply a base URL and a model id. API key is optional because
+// local servers (Ollama, LM Studio, vLLM) typically don't require auth.
+export const envSchema = z
+  .discriminatedUnion('APP_MODE', [local, hosted])
+  .superRefine((env, ctx) => {
+    if (env.LLM_PROVIDER !== 'openai-compatible') return;
+    if (!env.LLM_BASE_URL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['LLM_BASE_URL'],
+        message: 'LLM_BASE_URL is required when LLM_PROVIDER=openai-compatible',
+      });
+    }
+    if (!env.LLM_MODEL) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['LLM_MODEL'],
+        message: 'LLM_MODEL is required when LLM_PROVIDER=openai-compatible',
+      });
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

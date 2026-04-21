@@ -6,6 +6,7 @@ import type { OcrProvider } from './ocr/types';
 import type { StorageProvider } from './storage/types';
 import { localAuth } from './auth/local';
 import { createFakeLlm } from './llm/fake';
+import { createOpenAICompatLlm } from './llm/openai-compat';
 import { createFakeEmbedding } from './embedding/fake';
 import { createFakeOcr } from './ocr/fake';
 import { createFakeStorage } from './storage/fake';
@@ -31,6 +32,20 @@ function selectLlm(env: Env): LlmProvider {
   switch (env.LLM_PROVIDER) {
     case 'fake':
       return createFakeLlm();
+    case 'openai-compatible': {
+      // env schema refinement already guarantees these when provider === 'openai-compatible',
+      // but narrow explicitly so the adapter's config type stays required-only.
+      if (!env.LLM_BASE_URL || !env.LLM_MODEL) {
+        throw new Error(
+          'LLM_PROVIDER=openai-compatible requires LLM_BASE_URL and LLM_MODEL',
+        );
+      }
+      return createOpenAICompatLlm({
+        baseUrl: env.LLM_BASE_URL,
+        model: env.LLM_MODEL,
+        ...(env.LLM_API_KEY ? { apiKey: env.LLM_API_KEY } : {}),
+      });
+    }
     default:
       return notWired('llm', env.LLM_PROVIDER);
   }
