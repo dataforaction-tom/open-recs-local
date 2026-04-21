@@ -1,7 +1,7 @@
 # Plan
 
-> Last updated: 2026-04-19
-> Status: In progress — Phase 0 (Foundation)
+> Last updated: 2026-04-21
+> Status: In progress — Phase 2 (Core pipeline)
 
 ## Objective
 
@@ -17,13 +17,14 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 
 ## Current phase
 
-**Phase 0 — Foundation.** Start at Task 0.1 in the plan doc. Exit criteria: `docker compose up` runs empty Next.js + Postgres; CI green.
+**Phase 2 — Core pipeline.** Upload → parse → extract → embed via pg-boss queues, worker sidecar, first real provider adapters, SSE progress via Postgres LISTEN/NOTIFY. See `docs/plans/2026-04-19-open-recs-local-plan.md` for phase 2 exit criteria; a TDD task breakdown will be produced via `superpowers:writing-plans`.
 
 ## Tasks (phase-level)
 
-- [~] **CURRENT** Phase 0 — Foundation (8 tasks)
-- [ ] Phase 1 — Schema + provider skeleton (9 tasks)
-- [ ] Phase 2 — Core pipeline (upload → parse → extract → embed)
+- [x] Phase 0 — Foundation (merged as PR #1)
+- [x] Phase 1 — Schema + provider skeleton (merged as PR #2)
+- [x] Docs — README + mkdocs site (merged as PR #3)
+- [~] **CURRENT** Phase 2 — Core pipeline (upload → parse → extract → embed)
 - [ ] Phase 3 — Search surfaces (keyword, hybrid, chat)
 - [ ] Phase 4 — UI shell (nav, DecisionFlow, dark mode, feature gates)
 - [ ] Phase 5 — Source viewer (split-pane markdown + PDF)
