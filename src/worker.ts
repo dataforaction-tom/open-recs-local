@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 import { loadEnv } from '@/lib/env';
 import { createDb } from '@/lib/db/client';
 import { createProviders } from '@/lib/providers';
+import { emitJobEvent } from '@/lib/jobs/events';
 import { createQueue, type Queue } from '@/lib/jobs/queue';
 import { registerHandlers } from '@/lib/jobs/handlers';
 
@@ -52,10 +53,12 @@ async function main(): Promise<void> {
       });
     }
 
-    // TODO(Task 6): replace this no-op `emit` with the real pg_notify-backed
-    // emitter defined in `src/lib/jobs/events.ts`. Kept inline for now so the
-    // worker type-checks against the `JobContext` shape introduced in Task 5.
-    const emit = async (): Promise<void> => {};
+    // pg_notify-backed event sink. Uses the worker's long-lived `sql` client;
+    // subscribers (SSE route) open their own connection — LISTEN is
+    // connection-scoped.
+    const boundSql = sql;
+    const emit = (jobId: string, event: Parameters<typeof emitJobEvent>[2]): Promise<void> =>
+      emitJobEvent(boundSql, jobId, event);
     await registerHandlers({ queue, db: dbContext.db, providers, env, emit });
 
     console.log('[worker] ready');
