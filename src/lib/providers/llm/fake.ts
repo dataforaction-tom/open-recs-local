@@ -54,8 +54,20 @@ export function createFakeLlm(config: FakeLlmConfig = {}): LlmProvider {
       if (raw === undefined) {
         throw new Error(`fake LLM: no structured response registered for key="${key}"`);
       }
-      const value = input.schema.parse(raw);
-      return { value };
+      // Fixture-shape reconciliation: Task 2 fixtures on disk are flat arrays
+      // (`[{ title, full_text, ... }]`) but Task 9's ExtractionSchema wraps
+      // the array under `{ recommendations: [...] }`. Rather than churning
+      // the fixtures, if the caller's schema rejects the raw value AND the
+      // raw value is an array, retry once with the array wrapped.
+      const first = input.schema.safeParse(raw);
+      if (first.success) return { value: first.data };
+      if (Array.isArray(raw)) {
+        const wrapped = input.schema.safeParse({ recommendations: raw });
+        if (wrapped.success) return { value: wrapped.data };
+      }
+      // Re-throw the original zod error so schema-violation failures still
+      // surface with a useful message.
+      throw first.error;
     },
   };
 }
