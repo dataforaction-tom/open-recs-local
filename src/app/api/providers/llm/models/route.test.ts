@@ -76,7 +76,7 @@ describe('GET /api/providers/llm/models', () => {
       baseUrl: string;
       models: { id: string }[];
     };
-    expect(body.provider).toBe('openai-compat');
+    expect(body.provider).toBe('openai-compatible');
     expect(body.baseUrl).toBe('http://ollama:11434/v1');
     expect(body.models).toEqual([{ id: 'llama3.1:8b' }, { id: 'nomic-embed-text' }]);
     expect(fetchStub).toHaveBeenCalledTimes(1);

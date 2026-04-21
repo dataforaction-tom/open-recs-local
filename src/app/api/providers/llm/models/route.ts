@@ -43,7 +43,7 @@ export async function GET(): Promise<Response> {
     const models = await listModels(env.LLM_BASE_URL, env.LLM_API_KEY);
     return new Response(
       JSON.stringify({
-        provider: 'openai-compat',
+        provider: 'openai-compatible',
         baseUrl: env.LLM_BASE_URL,
         models,
       }),
