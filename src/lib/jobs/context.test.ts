@@ -45,11 +45,12 @@ describe('JobContext + registerHandlers', () => {
     await pg?.container.stop();
   });
 
-  // Point 3 from the plan: prove the three queues are actually registered
-  // by enqueuing a job and watching the stub throw. pg-boss will surface
-  // the handler error as `failed` state, which `waitForResult` rejects on.
+  // Point 3 from the plan: prove the still-stubbed queues are registered
+  // by enqueuing a job and watching the stub throw. pg-boss surfaces the
+  // handler error as `failed` state, which `waitForResult` rejects on.
+  // `source.parse` is now a real handler (Task 8) — covered by its own
+  // integration test in `handlers/parse.test.ts`, so we exclude it here.
   it.each([
-    ['source.parse', 'Task 8'],
     ['source.extract', 'Task 9'],
     ['source.embed', 'Task 10'],
   ] as const)('registers %s handler (throws not-implemented)', async (name, taskTag) => {
