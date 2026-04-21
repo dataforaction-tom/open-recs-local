@@ -62,6 +62,18 @@ describe('fake LLM provider', () => {
     expect(out.value[0]?.thematic_area_slug).toBe('governance');
   });
 
+  it('throws a descriptive error when fixture file is malformed JSON', async () => {
+    const tmp = await mkdtemp(path.join(os.tmpdir(), 'llm-fixtures-bad-'));
+    const fixturePath = path.join(tmp, 'broken.recommendations.json');
+    await writeFile(fixturePath, '{ not valid json', 'utf8');
+
+    const llm = createFakeLlm({ fixturesDir: tmp });
+    const schema = z.array(z.object({ title: z.string() }));
+    await expect(
+      llm.generateStructured({ prompt: '', schema, key: 'broken' }),
+    ).rejects.toThrow(new RegExp(`${fixturePath.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}.*not valid JSON`));
+  });
+
   it('throws when neither in-memory response nor fixture file exists', async () => {
     const tmp = await mkdtemp(path.join(os.tmpdir(), 'llm-fixtures-empty-'));
     const llm = createFakeLlm({ fixturesDir: tmp });

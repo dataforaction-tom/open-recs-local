@@ -22,11 +22,17 @@ function resolveFixturesDir(config: FakeLlmConfig): string {
 
 async function loadFixtureResponse(fixturesDir: string, key: string): Promise<unknown | undefined> {
   const fixturePath = path.join(fixturesDir, `${key}.recommendations.json`);
+  let raw: string;
   try {
-    const raw = await readFile(fixturePath, 'utf8');
+    raw = await readFile(fixturePath, 'utf8');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw err; // permission/IO errors should surface
+  }
+  try {
     return JSON.parse(raw);
-  } catch {
-    return undefined;
+  } catch (err) {
+    throw new Error(`fake LLM: fixture at ${fixturePath} is not valid JSON: ${(err as Error).message}`);
   }
 }
 
@@ -42,6 +48,7 @@ export function createFakeLlm(config: FakeLlmConfig = {}): LlmProvider {
       let raw: unknown = responses[key];
       if (raw === undefined) {
         // Fallback: treat `key` as a source stem and read the matching recs fixture.
+        // Resolved per-call so tests can mutate FIXTURES_DIR between constructions.
         raw = await loadFixtureResponse(resolveFixturesDir(config), key);
       }
       if (raw === undefined) {

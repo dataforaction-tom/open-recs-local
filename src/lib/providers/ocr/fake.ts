@@ -28,8 +28,11 @@ export function createFakeOcr(config: FakeOcrConfig = {}): OcrProvider {
       let markdown: string;
       try {
         markdown = await readFile(fixturePath, 'utf8');
-      } catch {
-        throw new Error(`fake OCR: no fixture found for "${filename}"`);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+          throw new Error(`fake OCR: no fixture found for "${filename}"`);
+        }
+        throw err; // permission/IO errors should surface with their original message
       }
       const chunks = markdown.split(/\r?\n---\r?\n/);
       const pages: ParsedPage[] = chunks.map((chunk, index) => ({
