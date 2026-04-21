@@ -23,6 +23,11 @@ services:
       target: app-runtime
     restart: unless-stopped
     env_file: .env
+    environment:
+      # Override any host-oriented DATABASE_URL in .env: inside the compose
+      # network the postgres service is reachable at hostname `postgres`,
+      # not `localhost`. Placed after env_file so this wins.
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/openrecs
     ports:
       - "3000:3000"
     volumes:
@@ -38,6 +43,9 @@ services:
       target: worker-runtime
     restart: unless-stopped
     env_file: .env
+    environment:
+      # See note on `app.environment` above.
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/openrecs
     volumes:
       - uploads:/data/uploads
     depends_on:
