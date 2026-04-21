@@ -31,6 +31,11 @@ const providerSelectors = {
     .default('fake'),
   // Required only when OCR_PROVIDER === 'docling' (cross-field refinement below).
   DOCLING_BASE_URL: z.string().url().optional(),
+  // Required only when OCR_PROVIDER === 'mistral' (cross-field refinement below).
+  // MISTRAL_BASE_URL is optional; the adapter falls back to https://api.mistral.ai
+  // so that tests can override the host without mandating a value in every env.
+  MISTRAL_API_KEY: z.string().optional(),
+  MISTRAL_BASE_URL: z.string().url().optional(),
   STORAGE_PROVIDER: z.enum(['fs', 's3', 'fake']).default('fake'),
 };
 
@@ -96,6 +101,16 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['DOCLING_BASE_URL'],
         message: 'DOCLING_BASE_URL is required when OCR_PROVIDER=docling',
+      });
+    }
+  })
+  .superRefine((env, ctx) => {
+    if (env.OCR_PROVIDER !== 'mistral') return;
+    if (!env.MISTRAL_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['MISTRAL_API_KEY'],
+        message: 'MISTRAL_API_KEY is required when OCR_PROVIDER=mistral',
       });
     }
   });

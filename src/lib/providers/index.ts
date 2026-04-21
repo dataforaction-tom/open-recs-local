@@ -11,6 +11,7 @@ import { createFakeEmbedding } from './embedding/fake';
 import { createOpenAICompatEmbedding } from './embedding/openai-compat';
 import { createFakeOcr } from './ocr/fake';
 import { createDoclingOcr } from './ocr/docling';
+import { createMistralOcr } from './ocr/mistral';
 import { createFakeStorage } from './storage/fake';
 
 export type Providers = {
@@ -83,6 +84,15 @@ function selectOcr(env: Env): OcrProvider {
         throw new Error('OCR_PROVIDER=docling requires DOCLING_BASE_URL');
       }
       return createDoclingOcr({ baseUrl: env.DOCLING_BASE_URL });
+    }
+    case 'mistral': {
+      if (!env.MISTRAL_API_KEY) {
+        throw new Error('OCR_PROVIDER=mistral requires MISTRAL_API_KEY');
+      }
+      return createMistralOcr({
+        apiKey: env.MISTRAL_API_KEY,
+        ...(env.MISTRAL_BASE_URL ? { baseUrl: env.MISTRAL_BASE_URL } : {}),
+      });
     }
     default:
       return notWired('ocr', env.OCR_PROVIDER);
