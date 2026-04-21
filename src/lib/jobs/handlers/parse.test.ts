@@ -161,7 +161,27 @@ describe('source.parse handler', () => {
     expect(extractRows.length).toBe(0);
   }, 60_000);
 
-  it('empty pages: OCR returns zero pages -> succeeds, no page rows, still enqueues extract', async () => {
+  it('idempotent: running the handler twice does not accumulate duplicate page rows', async () => {
+    const { sourceId } = await seedSource({ filename: fixtureFile });
+    const ctx = ctxWithProviders(baseProviders);
+
+    await parseHandler(ctx, { sourceId });
+    const firstPages = await dbClient.db
+      .select({ id: sourcePages.id })
+      .from(sourcePages)
+      .where(eq(sourcePages.sourceId, sourceId));
+    const firstCount = firstPages.length;
+    expect(firstCount).toBeGreaterThan(0);
+
+    await parseHandler(ctx, { sourceId });
+    const secondPages = await dbClient.db
+      .select({ id: sourcePages.id })
+      .from(sourcePages)
+      .where(eq(sourcePages.sourceId, sourceId));
+    expect(secondPages.length).toBe(firstCount);
+  }, 60_000);
+
+it('empty pages: OCR returns zero pages -> succeeds, no page rows, still enqueues extract', async () => {
     const { sourceId } = await seedSource({ filename: fixtureFile });
 
     const emptyOcr: OcrProvider = {

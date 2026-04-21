@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { JobContext } from '../context';
 import type { QueuePayloads } from '../types';
 import { sourceFiles, sourcePages, sources } from '@/lib/db/schema';
@@ -60,12 +60,12 @@ export async function parseHandler(
         storageKey: sourceFiles.storageKey,
       })
       .from(sourceFiles)
-      .where(eq(sourceFiles.sourceId, sourceId))
+      .where(and(eq(sourceFiles.sourceId, sourceId), eq(sourceFiles.role, 'original')))
       .orderBy(asc(sourceFiles.createdAt))
       .limit(1);
     const fileRow = fileRows[0];
     if (!fileRow) {
-      throw new Error(`source.parse: no source_files row for source ${sourceId}`);
+      throw new Error(`source.parse: no original file found for source ${sourceId}`);
     }
 
     const bytes = await ctx.providers.storage.get(fileRow.storageKey);
@@ -80,6 +80,9 @@ export async function parseHandler(
     // we don't want a half-parsed source left around — the transaction
     // rolls everything back and we fall through to the catch below.
     await ctx.db.transaction(async (tx) => {
+      // why: pg-boss retries failed jobs; clearing existing page rows first
+      // keeps re-parses idempotent (no duplicate page rows per source).
+      await tx.delete(sourcePages).where(eq(sourcePages.sourceId, sourceId));
       if (parsed.pages.length > 0) {
         await tx.insert(sourcePages).values(
           parsed.pages.map((page) => ({
