@@ -1,4 +1,4 @@
-import { and, eq, isNull, inArray } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { JobContext } from '../context';
 import type { QueuePayloads } from '../types';
 import { EMBEDDING_DIM, recommendations, sources } from '@/lib/db/schema';
@@ -99,7 +99,7 @@ export async function embedHandler(
             embeddingModel: modelTag,
             updatedAt: new Date(),
           })
-          .where(inArray(recommendations.id, [recRow.id]));
+          .where(eq(recommendations.id, recRow.id));
       }
 
       done += batch.length;
