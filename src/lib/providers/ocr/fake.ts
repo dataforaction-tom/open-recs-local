@@ -3,17 +3,28 @@ import path from 'node:path';
 import type { OcrProvider, ParsedDocument, ParsedPage } from './types';
 
 export type FakeOcrConfig = {
-  /** Directory holding fixture `.md` files. Defaults to `<cwd>/fixtures/ocr`. */
+  /**
+   * Directory holding fixture `<stem>.canonical.md` files.
+   * Resolution order: explicit config → `FIXTURES_DIR` env → `<cwd>/fixtures/sources`.
+   */
   fixturesDir?: string;
 };
 
+function resolveFixturesDir(config: FakeOcrConfig): string {
+  if (config.fixturesDir) return config.fixturesDir;
+  const fromEnv = process.env.FIXTURES_DIR;
+  if (fromEnv && fromEnv.length > 0) return path.resolve(fromEnv);
+  return path.resolve(process.cwd(), 'fixtures/sources');
+}
+
 export function createFakeOcr(config: FakeOcrConfig = {}): OcrProvider {
-  const fixturesDir = config.fixturesDir ?? path.resolve(process.cwd(), 'fixtures/ocr');
+  // Resolved lazily on each call so tests can mutate FIXTURES_DIR between runs.
   return {
     name: 'fake',
     async parseDocument({ filename, bytes: _bytes }): Promise<ParsedDocument> {
+      const fixturesDir = resolveFixturesDir(config);
       const stem = filename.replace(/\.[^.]+$/, '');
-      const fixturePath = path.join(fixturesDir, `${stem}.md`);
+      const fixturePath = path.join(fixturesDir, `${stem}.canonical.md`);
       let markdown: string;
       try {
         markdown = await readFile(fixturePath, 'utf8');

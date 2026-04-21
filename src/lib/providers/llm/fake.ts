@@ -1,9 +1,34 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import type { LlmProvider, LlmStructuredInput, LlmStructuredOutput, LlmTextInput, LlmTextOutput } from './types';
 
 export type FakeLlmConfig = {
-  /** Map of key → object, used by generateStructured. */
+  /** Map of key → object, used by generateStructured. Wins over fixture files. */
   structuredResponses?: Record<string, unknown>;
+  /**
+   * Directory holding fixture `<key>.recommendations.json` files used as a
+   * fallback when `structuredResponses` has no entry for the key.
+   * Resolution order: explicit config → `FIXTURES_DIR` env → `<cwd>/fixtures/sources`.
+   */
+  fixturesDir?: string;
 };
+
+function resolveFixturesDir(config: FakeLlmConfig): string {
+  if (config.fixturesDir) return config.fixturesDir;
+  const fromEnv = process.env.FIXTURES_DIR;
+  if (fromEnv && fromEnv.length > 0) return path.resolve(fromEnv);
+  return path.resolve(process.cwd(), 'fixtures/sources');
+}
+
+async function loadFixtureResponse(fixturesDir: string, key: string): Promise<unknown | undefined> {
+  const fixturePath = path.join(fixturesDir, `${key}.recommendations.json`);
+  try {
+    const raw = await readFile(fixturePath, 'utf8');
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
 
 export function createFakeLlm(config: FakeLlmConfig = {}): LlmProvider {
   const responses = config.structuredResponses ?? {};
@@ -14,7 +39,11 @@ export function createFakeLlm(config: FakeLlmConfig = {}): LlmProvider {
     },
     async generateStructured<T>(input: LlmStructuredInput<T>): Promise<LlmStructuredOutput<T>> {
       const key = input.key ?? 'default';
-      const raw = responses[key];
+      let raw: unknown = responses[key];
+      if (raw === undefined) {
+        // Fallback: treat `key` as a source stem and read the matching recs fixture.
+        raw = await loadFixtureResponse(resolveFixturesDir(config), key);
+      }
       if (raw === undefined) {
         throw new Error(`fake LLM: no structured response registered for key="${key}"`);
       }
