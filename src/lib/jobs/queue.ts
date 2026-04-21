@@ -48,9 +48,11 @@ export type Queue = {
 export async function createQueue(options: QueueOptions): Promise<Queue> {
   const boss = new PgBoss(options.connectionString);
 
-  // pg-boss emits 'error' for transient issues; swallow to avoid crashing
-  // the test runner when the container is torn down mid-flight.
-  boss.on('error', () => {});
+  // pg-boss emits 'error' for transient issues (e.g. the container being torn
+  // down mid-flight during tests). We log so real runtime problems surface in
+  // the worker, but keep the listener attached so emitted errors don't crash
+  // the process.
+  boss.on('error', (err) => console.warn('[queue] boss error:', err));
 
   await boss.start();
 
@@ -119,7 +121,13 @@ export async function createQueue(options: QueueOptions): Promise<Queue> {
     return rows as unknown as Array<Record<string, unknown>>;
   };
 
+  // Latch so stop() is safe to call multiple times. Worker SIGTERM/SIGINT
+  // handlers may both fire (e.g. `docker stop` then Ctrl-C), and pg-boss
+  // rejects a second stop() call.
+  let stopped = false;
   const stop: Queue['stop'] = async () => {
+    if (stopped) return;
+    stopped = true;
     try {
       await boss.stop({ graceful: false, close: true });
     } finally {
