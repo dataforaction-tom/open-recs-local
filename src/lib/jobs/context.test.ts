@@ -45,20 +45,10 @@ describe('JobContext + registerHandlers', () => {
     await pg?.container.stop();
   });
 
-  // Point 3 from the plan: prove the still-stubbed queues are registered
-  // by enqueuing a job and watching the stub throw. pg-boss surfaces the
-  // handler error as `failed` state, which `waitForResult` rejects on.
-  // `source.parse` (Task 8) and `source.extract` (Task 9) are now real
-  // handlers covered by their own integration tests, so they are excluded
-  // here and only the remaining stubbed handler is asserted.
-  it.each([['source.embed', 'Task 10']] as const)(
-    'registers %s handler (throws not-implemented)',
-    async (name, taskTag) => {
-      const jobId = await queue.enqueue(name, { sourceId: 'test-source' });
-      await expect(queue.waitForResult(jobId, 10_000)).rejects.toThrow(taskTag);
-    },
-    30_000,
-  );
+  // `source.parse` (Task 8), `source.extract` (Task 9), and `source.embed`
+  // (Task 10) are all real handlers covered by their own integration tests.
+  // No stubs remain in the registration list, so this file now only asserts
+  // the compile-time queue-name guard below.
 
   it('rejects unknown queue names at compile time', () => {
     // Point 4: this is a pure TS assertion — if the `QueueName` union ever
