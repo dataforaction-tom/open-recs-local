@@ -52,7 +52,11 @@ async function main(): Promise<void> {
       });
     }
 
-    await registerHandlers({ queue, db: dbContext.db, providers, env });
+    // TODO(Task 6): replace this no-op `emit` with the real pg_notify-backed
+    // emitter defined in `src/lib/jobs/events.ts`. Kept inline for now so the
+    // worker type-checks against the `JobContext` shape introduced in Task 5.
+    const emit = async (): Promise<void> => {};
+    await registerHandlers({ queue, db: dbContext.db, providers, env, emit });
 
     console.log('[worker] ready');
   } catch (err) {
