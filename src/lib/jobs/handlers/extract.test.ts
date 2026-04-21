@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
@@ -33,6 +34,16 @@ const fixtureFile = 'sample-report.pdf';
 const fixtureStem = 'sample-report';
 // The shipped fixture has 3 recs; governance/safeguarding/finance slugs.
 const FIXTURE_REC_COUNT = 3;
+
+// Seeded taxonomy slugs — must match the `seedThematicAreas(...)` call below.
+const SEEDED_SLUGS = new Set(['governance', 'safeguarding', 'finance']);
+
+type FixtureRec = { title: string; full_text: string; thematic_area_slug?: string };
+
+async function loadFixtureRecs(): Promise<FixtureRec[]> {
+  const raw = await readFile(path.join(fixtureDir, `${fixtureStem}.recommendations.json`), 'utf8');
+  return JSON.parse(raw) as FixtureRec[];
+}
 
 async function seedSource(opts: { filename: string; canonical?: string }): Promise<{ sourceId: string }> {
   const slug = `test-${randomUUID().slice(0, 8)}`;
@@ -203,23 +214,50 @@ describe('source.extract handler', () => {
     const { sourceId } = await seedSource({ filename: fixtureFile });
     const ctx = ctxWithProviders(baseProviders);
 
-    await extractHandler(ctx, { sourceId });
-    const firstCount = (
-      await dbClient.db
+    // Expected counts derived from the fixture, so they track the on-disk
+    // data rather than hardcoded magic numbers. A fresh delete-then-insert
+    // on retry should land on these same totals — that's what proves the
+    // ON DELETE CASCADE on joins + statuses actually fired.
+    const fixtureRecs = await loadFixtureRecs();
+    const expectedRecCount = fixtureRecs.length;
+    const expectedJoinCount = fixtureRecs.filter(
+      (r) => r.thematic_area_slug && SEEDED_SLUGS.has(r.thematic_area_slug),
+    ).length;
+
+    async function countsForSource(): Promise<{ recs: number; statuses: number; joins: number }> {
+      const recRows = await dbClient.db
         .select({ id: recommendations.id })
         .from(recommendations)
-        .where(eq(recommendations.sourceId, sourceId))
-    ).length;
-    expect(firstCount).toBe(FIXTURE_REC_COUNT);
+        .where(eq(recommendations.sourceId, sourceId));
+      const recIds = new Set(recRows.map((r) => r.id));
+      const allStatuses = await dbClient.db
+        .select({ recId: recommendationStatuses.recommendationId })
+        .from(recommendationStatuses);
+      const allJoins = await dbClient.db
+        .select({ recId: recommendationsThematicAreas.recommendationId })
+        .from(recommendationsThematicAreas);
+      return {
+        recs: recRows.length,
+        statuses: allStatuses.filter((s) => recIds.has(s.recId)).length,
+        joins: allJoins.filter((j) => recIds.has(j.recId)).length,
+      };
+    }
 
     await extractHandler(ctx, { sourceId });
-    const secondCount = (
-      await dbClient.db
-        .select({ id: recommendations.id })
-        .from(recommendations)
-        .where(eq(recommendations.sourceId, sourceId))
-    ).length;
-    expect(secondCount).toBe(FIXTURE_REC_COUNT);
+    const first = await countsForSource();
+    expect(first.recs).toBe(expectedRecCount);
+    expect(first.statuses).toBe(expectedRecCount);
+    expect(first.joins).toBe(expectedJoinCount);
+
+    await extractHandler(ctx, { sourceId });
+    const second = await countsForSource();
+    // Second run: the delete-then-insert path must leave counts identical —
+    // proving CASCADE cleared the previous joins + statuses, not just recs.
+    expect(second.recs).toBe(expectedRecCount);
+    expect(second.statuses).toBe(expectedRecCount);
+    expect(second.joins).toBe(expectedJoinCount);
+    // Keep the FIXTURE_REC_COUNT invariant tripwired too.
+    expect(expectedRecCount).toBe(FIXTURE_REC_COUNT);
   }, 60_000);
 
   it('failure path: LLM throws → status=failed, error event, no source.embed enqueued', async () => {

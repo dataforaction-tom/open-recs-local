@@ -124,13 +124,6 @@ export async function extractHandler(
       : [];
     const slugToAreaId = new Map(knownAreas.map((a) => [a.slug, a.id]));
     const unknownSlugs = uniqueSlugs.filter((s) => !slugToAreaId.has(s));
-    if (unknownSlugs.length > 0) {
-      await ctx.emit(sourceId, {
-        type: 'progress',
-        percent: 0,
-        message: `unrecognised thematic area slug(s): ${unknownSlugs.join(', ')}`,
-      });
-    }
 
     await ctx.db.transaction(async (tx) => {
       // why: pg-boss retries; clearing existing recs first keeps re-extracts
@@ -190,6 +183,17 @@ export async function extractHandler(
         .set({ status: 'embedding', updatedAt: new Date() })
         .where(eq(sources.id, sourceId));
     });
+
+    // Commit-gated: only surface the unknown-slug warning after the tx has
+    // committed, so a rollback doesn't emit a misleading warning for recs
+    // that never persisted.
+    if (unknownSlugs.length > 0) {
+      await ctx.emit(sourceId, {
+        type: 'progress',
+        percent: 0,
+        message: `unrecognised thematic area slug(s): ${unknownSlugs.join(', ')}`,
+      });
+    }
 
     // Only enqueue once the transaction has committed.
     await ctx.queue.enqueue('source.embed', { sourceId });
