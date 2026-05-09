@@ -120,7 +120,16 @@ export type Env = z.infer<typeof envSchema>;
 export function loadEnv(
   source: Record<string, string | undefined> = process.env,
 ): Env {
-  const parsed = envSchema.safeParse(source);
+  // Coerce empty strings to undefined so `.optional()` fields behave consistently
+  // whether the key is absent or present-but-empty. Docker compose's `env_file`
+  // passes empty values through as "" which otherwise fails `.url()` parsing on
+  // fields like LLM_BASE_URL even when the provider is `fake`.
+  const normalized: Record<string, string | undefined> = {};
+  for (const key of Object.keys(source)) {
+    const value = source[key];
+    normalized[key] = value === '' ? undefined : value;
+  }
+  const parsed = envSchema.safeParse(normalized);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((issue) => `${issue.path.join('.')}: ${issue.message}`)

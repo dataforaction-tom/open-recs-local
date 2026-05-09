@@ -24,4 +24,23 @@ describe('loadEnv', () => {
     expect(env.OCR_PROVIDER).toBe('fake');
     expect(env.STORAGE_PROVIDER).toBe('fake');
   });
+
+  // Regression: docker compose `env_file` passes empty values as "" which made
+  // `.url().optional()` fields reject them even though the provider was `fake`.
+  it('treats empty strings on optional URL fields as absent', () => {
+    const env = loadEnv({
+      APP_MODE: 'local',
+      DATABASE_URL: 'postgres://x/y',
+      LLM_PROVIDER: 'fake',
+      LLM_BASE_URL: '',
+      LLM_MODEL: '',
+      LLM_API_KEY: '',
+      EMBEDDING_PROVIDER: 'fake',
+      EMBEDDING_BASE_URL: '',
+      EMBEDDING_MODEL: '',
+      EMBEDDING_API_KEY: '',
+    });
+    expect(env.LLM_BASE_URL).toBeUndefined();
+    expect(env.EMBEDDING_BASE_URL).toBeUndefined();
+  });
 });
