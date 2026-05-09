@@ -6,8 +6,12 @@ import type { OcrProvider } from './ocr/types';
 import type { StorageProvider } from './storage/types';
 import { localAuth } from './auth/local';
 import { createFakeLlm } from './llm/fake';
+import { createOpenAICompatLlm } from './llm/openai-compat';
 import { createFakeEmbedding } from './embedding/fake';
+import { createOpenAICompatEmbedding } from './embedding/openai-compat';
 import { createFakeOcr } from './ocr/fake';
+import { createDoclingOcr } from './ocr/docling';
+import { createMistralOcr } from './ocr/mistral';
 import { createFakeStorage } from './storage/fake';
 
 export type Providers = {
@@ -31,6 +35,20 @@ function selectLlm(env: Env): LlmProvider {
   switch (env.LLM_PROVIDER) {
     case 'fake':
       return createFakeLlm();
+    case 'openai-compatible': {
+      // env schema refinement already guarantees these when provider === 'openai-compatible',
+      // but narrow explicitly so the adapter's config type stays required-only.
+      if (!env.LLM_BASE_URL || !env.LLM_MODEL) {
+        throw new Error(
+          'LLM_PROVIDER=openai-compatible requires LLM_BASE_URL and LLM_MODEL',
+        );
+      }
+      return createOpenAICompatLlm({
+        baseUrl: env.LLM_BASE_URL,
+        model: env.LLM_MODEL,
+        ...(env.LLM_API_KEY ? { apiKey: env.LLM_API_KEY } : {}),
+      });
+    }
     default:
       return notWired('llm', env.LLM_PROVIDER);
   }
@@ -40,6 +58,18 @@ function selectEmbedding(env: Env): EmbeddingProvider {
   switch (env.EMBEDDING_PROVIDER) {
     case 'fake':
       return createFakeEmbedding();
+    case 'openai-compatible': {
+      if (!env.EMBEDDING_BASE_URL || !env.EMBEDDING_MODEL) {
+        throw new Error(
+          'EMBEDDING_PROVIDER=openai-compatible requires EMBEDDING_BASE_URL and EMBEDDING_MODEL',
+        );
+      }
+      return createOpenAICompatEmbedding({
+        baseUrl: env.EMBEDDING_BASE_URL,
+        model: env.EMBEDDING_MODEL,
+        ...(env.EMBEDDING_API_KEY ? { apiKey: env.EMBEDDING_API_KEY } : {}),
+      });
+    }
     default:
       return notWired('embedding', env.EMBEDDING_PROVIDER);
   }
@@ -49,6 +79,21 @@ function selectOcr(env: Env): OcrProvider {
   switch (env.OCR_PROVIDER) {
     case 'fake':
       return createFakeOcr();
+    case 'docling': {
+      if (!env.DOCLING_BASE_URL) {
+        throw new Error('OCR_PROVIDER=docling requires DOCLING_BASE_URL');
+      }
+      return createDoclingOcr({ baseUrl: env.DOCLING_BASE_URL });
+    }
+    case 'mistral': {
+      if (!env.MISTRAL_API_KEY) {
+        throw new Error('OCR_PROVIDER=mistral requires MISTRAL_API_KEY');
+      }
+      return createMistralOcr({
+        apiKey: env.MISTRAL_API_KEY,
+        ...(env.MISTRAL_BASE_URL ? { baseUrl: env.MISTRAL_BASE_URL } : {}),
+      });
+    }
     default:
       return notWired('ocr', env.OCR_PROVIDER);
   }

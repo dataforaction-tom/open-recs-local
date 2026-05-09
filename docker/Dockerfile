@@ -37,10 +37,13 @@ EXPOSE 3000
 CMD ["pnpm", "start"]
 
 # ---- worker-runtime -------------------------------------------------------
-# Placeholder until Phase 2 implements src/worker.ts + a "worker" script.
-# Keeps the image target real so compose can resolve it today.
+# The worker runs TypeScript sources directly via tsx (promoted to a prod
+# dependency in Phase 2 Task 1). We copy prod node_modules + the src tree +
+# tsconfig so tsx can resolve the `@/*` path alias at runtime.
 FROM base AS worker-runtime
 ENV NODE_ENV=production
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
-CMD ["node", "-e", "console.log('worker stub — implemented in Phase 2'); setInterval(() => {}, 60000);"]
+COPY --from=build /app/tsconfig.json ./tsconfig.json
+COPY --from=build /app/src ./src
+CMD ["pnpm", "worker"]
