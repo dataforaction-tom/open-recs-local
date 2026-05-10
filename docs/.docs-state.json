@@ -1,6 +1,5 @@
 {
-  "last_documented_commit": "72eb212f1d2d8707f4ab1c47019c50850ad17931",
+  "last_documented_commit": "96e6235e25650459db6bd6d4236bc3320d769027",
   "last_updated": "2026-05-10T00:00:00Z",
-  "updated_by": "phase-3-prep",
-  "notes": "changelog now also covers Phase 3; bump last_documented_commit to the Phase 3 squash-merge once it lands on master"
+  "updated_by": "phase-3-merge"
 }
