@@ -6,15 +6,23 @@
 
 **Architecture:** Next.js 16 App Router with three route groups under `src/app/`: `(marketing)/` for the hosted-only public landing, `(app)/` for the authenticated app shell (dashboard, sources, search, recommendations stub, etc. — empty pages for the latter where Phase 5+ owns the content), and `(auth)/` reserved for Phase 8 (Better-auth flows). A new server util `getPublicConfig()` reads the env once on the server and exposes a small JSON blob (`{ appMode, features }`) to the client via a `<ConfigProvider>` context — that's how `<FeatureGate>` knows what to render. Theme uses Tailwind v4's `dark:` modifier driven by a `data-theme="dark"` attribute on `<html>`; `ThemeInitializer` is an inline script in `<head>` that sets the attribute pre-hydration so there's no FOUC. `DecisionFlow` is the first-launch click-through animated with Framer Motion; it persists a "seen" flag in `localStorage` so it doesn't re-show.
 
-**Tech Stack — new deps to add at Task 1 (approval-gated):**
+**Tech Stack — new tooling at Task 1 (approval-gated):**
 
-- `framer-motion@^12` — DecisionFlow animations. Mature, the Phase-1 design already names it.
-- `clsx@^2` — classname composition. Tiny, stable.
-- `tailwind-merge@^3` — Tailwind class deduplication for variant components.
-- `lucide-react@^0.544` — icons. Tree-shakable, MIT.
-- `next-themes@^0.4` — `<ThemeProvider>` + `useTheme()`. Handles SSR + system-pref + localStorage. (Alt: hand-roll ~40 lines. `next-themes` saves a day of test scaffolding.)
-- `@testing-library/react@^17` + `@testing-library/jest-dom@^7` + `@testing-library/user-event@^14` — component testing. Required for any UI test.
+- **shadcn/ui** — primitive set, codegenned into `src/components/ui/`. `npx shadcn@latest init` configures `components.json` and pulls in `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, `tw-animate-css`. We then `npx shadcn@latest add` only the primitives Phase 4 actually uses (`button`, `card`). Other shadcn primitives (`dialog`, `tooltip`, `select`, etc.) are added in later phases as their first consumer appears.
+- `framer-motion@^12` — DecisionFlow animations (not a shadcn primitive).
+- `next-themes@^0.4` — `<ThemeProvider>` + `useTheme()`. Handles SSR + system-pref + localStorage. shadcn's docs show `next-themes` as the canonical theme integration, so this is the path of least friction.
+- `@testing-library/react@^17` + `@testing-library/jest-dom@^7` + `@testing-library/user-event@^14` — component testing.
 - `happy-dom@^20` — DOM environment for Vitest. Faster startup than jsdom; better React 19 compatibility today.
+
+**shadcn init setup (executed in Task 1 with explicit flags so nothing is interactive):**
+
+- Style: `new-york` (default; lighter visual than `default`).
+- Base color: `slate`.
+- CSS variables: `yes`.
+- Root css: `src/app/globals.css`.
+- Aliases: `@/components/ui` for primitives, `@/lib/utils` for `cn()`.
+
+**Components added by `npx shadcn add` in Phase 4:** `button`, `card`. Anything else gets added in the task that first uses it.
 
 **Deferred to later phases (do NOT add in Phase 4):**
 
@@ -26,7 +34,7 @@
 - `react-hook-form`, `react-select` — Phase 6/7.
 - `@playwright/test` — out of scope for Phase 4. Component-level testing via testing-library + happy-dom is enough; full browser e2e gets revisited at Phase 10.
 
-**Why no shadcn/ui:** the design lists "shadcn/ui or a small handwritten set" as the primitive choice. We pick **handwritten**: ~6 small components (`Button`, `Card`, `Container`, `Link`, `Toggle`, `IconButton`) shrink to maybe 200 lines total, give us total control of the dark-mode contract and class structure, and avoid the `npx shadcn add` codegen step which doesn't fit the test-first pattern.
+**Testing discipline with shadcn primitives:** shadcn components are owned-code (codegenned into the repo), but they ship without tests. We do not re-test the primitives themselves — that would just assert on shadcn's class names, which is brittle. Instead we test our **composition**: `<DarkModeToggle>` (uses `<Button size="icon">`), `<Navigation>` (composes `<Button>` and `<Link>`), `<DashboardView>` (uses `<Card>`). Behavioural assertions (clicks, aria attributes, conditional rendering) — not class-name assertions.
 
 ---
 
@@ -57,8 +65,8 @@
 
 | # | Task | Touches |
 |---|---|---|
-| 1 | Approval-gated dep install + vitest UI config (happy-dom, RTL) | `package.json`, `vitest.config.mts`, `vitest.setup.ts` |
-| 2 | UI primitives (`Button`, `Container`, `IconButton`) — test-first | `src/components/ui/{button,container,icon-button}.{tsx,test.tsx}` |
+| 1 | shadcn init + framer-motion / next-themes / RTL deps + vitest UI config | `package.json`, `components.json`, `src/app/globals.css`, `src/lib/utils.ts`, `vitest.config.mts`, `vitest.setup.ts` |
+| 2 | shadcn add `button` + `card`; tiny `Container` helper | `src/components/ui/{button,card}.tsx` (codegen), `src/components/ui/container.tsx` |
 | 3 | Theme: `ThemeInitializer` + `DarkModeToggle` + dark-mode CSS contract | `src/components/theme/*`, `src/app/globals.css` |
 | 4 | `getPublicConfig()` + `<ConfigProvider>` + `useConfig()` | `src/lib/config/public.ts`, `src/lib/config/{provider,context}.tsx` |
 | 5 | `<FeatureGate>` component | `src/components/feature-gate.tsx`, `.test.tsx` |
@@ -83,31 +91,43 @@
 
 ---
 
-## Task 1 — Dep install + vitest UI config
-
-**Approval gate:** before running `pnpm add`, confirm with the user the lib choices in the **Tech Stack** section above. CLAUDE.md "Working Rules": *Don't add dependencies without asking.*
+## Task 1 — shadcn init + UI deps + vitest UI config
 
 **Files:**
 - Modify: `package.json`
-- Modify (or create): `vitest.config.mts`
+- Create: `components.json` (via `shadcn init`)
+- Modify: `src/app/globals.css` (shadcn writes its CSS variable layer + Tailwind imports)
+- Create: `src/lib/utils.ts` (shadcn writes `cn()` here)
+- Create or modify: `vitest.config.mts`
 - Create: `vitest.setup.ts`
 
 **Step 1 — Verify current state:**
 
 ```bash
 cat vitest.config.mts
-grep -E '"@testing-library|happy-dom|framer-motion|next-themes|lucide-react|clsx|tailwind-merge"' package.json || echo "(none yet)"
-grep -E '@variant dark|darkMode' src/app/globals.css || echo "(no dark-mode setup)"
+cat src/app/globals.css
+grep -E '"@testing-library|happy-dom|framer-motion|next-themes|class-variance-authority"' package.json || echo "(none yet)"
+ls components.json 2>/dev/null && echo "shadcn already initialised" || echo "(no shadcn yet)"
 ```
 
-**Step 2 — Install (after approval):**
+**Step 2 — Run shadcn init non-interactively:**
 
 ```bash
-pnpm add framer-motion clsx tailwind-merge lucide-react next-themes
+pnpm dlx shadcn@latest init --yes --base-color slate --css-variables
+```
+
+If the CLI asks any prompts despite `--yes` (some versions still ask about overwriting `globals.css`), use the explicit flags as documented in shadcn-ui.com/docs/installation/next, or run interactively and pick: New York / Slate / CSS variables yes / globals.css path = `src/app/globals.css`.
+
+**Step 3 — Install remaining UI + test deps:**
+
+```bash
+pnpm add framer-motion next-themes
 pnpm add -D happy-dom @testing-library/react @testing-library/jest-dom @testing-library/user-event
 ```
 
-**Step 3 — Wire vitest:**
+`shadcn init` already installed `class-variance-authority`, `clsx`, `tailwind-merge`, `lucide-react`, and `tw-animate-css`.
+
+**Step 4 — Wire vitest for component tests:**
 
 ```ts
 // vitest.config.mts — extend with the React plugin + dom env for *.test.tsx
@@ -135,39 +155,60 @@ import { cleanup } from '@testing-library/react';
 afterEach(cleanup);
 ```
 
-**Step 4 — Smoke test the harness with a single trivial component test** so we don't ship a broken setup. (Counts as red, then green: write a `Button` test that fails because `Button` doesn't exist yet — folds into Task 2's RED phase.)
+**Step 5 — Smoke check.** `pnpm typecheck && pnpm lint && pnpm test` (no UI tests yet — must still pass). Then `pnpm build` to confirm shadcn's CSS layer doesn't break Next.js.
 
-**Step 5 — Commit:**
+**Step 6 — Commit:**
 
 ```bash
-git add package.json pnpm-lock.yaml vitest.config.mts vitest.setup.ts
-git commit -m "build: ui deps + vitest happy-dom config for component tests"
+git add package.json pnpm-lock.yaml components.json src/lib/utils.ts src/app/globals.css vitest.config.mts vitest.setup.ts
+git commit -m "build(ui): shadcn init + framer-motion + next-themes + vitest happy-dom"
 ```
 
 ---
 
-## Task 2 — UI primitives
+## Task 2 — Add shadcn `button` + `card`; tiny `Container` helper
 
 **Files:**
-- Create: `src/components/ui/cn.ts` (just `clsx` + `tailwind-merge` glue, ~5 lines)
-- Create: `src/components/ui/button.tsx` + `button.test.tsx`
+- Create (codegen): `src/components/ui/button.tsx` (via `shadcn add button`)
+- Create (codegen): `src/components/ui/card.tsx` (via `shadcn add card`)
 - Create: `src/components/ui/container.tsx` + `container.test.tsx`
-- Create: `src/components/ui/icon-button.tsx` + `icon-button.test.tsx`
 
-**Component contracts (test-first):**
+**Step 1:**
 
-`Button` — `variant: 'primary' | 'secondary' | 'ghost'`, `size: 'sm' | 'md' | 'lg'`, forwards refs, accepts `disabled`. Test: clicking calls `onClick`; disabled state blocks click; `variant="primary"` renders the primary class set; aria-disabled mirrors disabled.
+```bash
+pnpm dlx shadcn@latest add button card --yes
+```
 
-`Container` — wraps children in a max-width responsive box with horizontal padding. Test: renders children; max-width class is applied; pads at sm breakpoint.
+This pulls in `@radix-ui/react-slot` and writes the two component files. They are owned code now — feel free to tweak class strings later if our visual style diverges, but resist editing them in Phase 4.
 
-`IconButton` — accessible icon-only button. Test: `aria-label` is required (TS-enforced) and forwarded; clicking calls `onClick`; renders the icon child.
+**Step 2 — Container.** shadcn doesn't ship one. Tiny:
 
-**Why these three:** every later component (nav, toggle, decision-flow buttons, gate placeholders) builds on them. Anything beyond these three (Card, Toggle base, Link styled wrapper) gets added when the first consumer appears, not pre-emptively.
+```tsx
+// src/components/ui/container.tsx
+import { cn } from '@/lib/utils';
+
+export function Container({
+  className,
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn('mx-auto w-full max-w-screen-xl px-4 sm:px-6 lg:px-8', className)} {...props}>
+      {children}
+    </div>
+  );
+}
+```
+
+Test: renders children; respects `className` override (asserts cn() merging behaviour, not specific class strings).
+
+**Why no IconButton:** shadcn's `<Button size="icon">` covers it. Use that with `aria-label` everywhere we'd previously have written `<IconButton>`.
 
 **Commit:**
 
 ```bash
-git commit -m "feat(ui): button + container + icon-button primitives"
+git add src/components/ui src/components/ui/container.test.tsx
+git commit -m "feat(ui): shadcn button + card primitives; Container helper"
 ```
 
 ---
@@ -175,11 +216,11 @@ git commit -m "feat(ui): button + container + icon-button primitives"
 ## Task 3 — Theme
 
 **Files:**
-- Create: `src/components/theme/theme-initializer.tsx` — inline script that runs before hydration; reads localStorage `theme` (default `system`) and sets `data-theme` on `<html>`.
-- Create: `src/components/theme/theme-provider.tsx` — thin wrapper around `next-themes`'s `ThemeProvider` configured with `attribute="data-theme"` and `enableSystem`.
-- Create: `src/components/theme/dark-mode-toggle.tsx` + `.test.tsx` — `IconButton` cycling light → dark → system, calling `setTheme()` from `useTheme()`.
-- Modify: `src/app/globals.css` — add `@variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));` and the base CSS variable layer (`--bg`, `--fg`, `--muted`, etc.).
-- Modify: `src/app/layout.tsx` — render `<ThemeInitializer />` in `<head>` and wrap children in `<ThemeProvider>`.
+- Create: `src/components/theme/theme-initializer.tsx` — inline script that runs before hydration; reads localStorage `theme` and sets `class="dark"` on `<html>` (matches the attribute shadcn writes into `globals.css`).
+- Create: `src/components/theme/theme-provider.tsx` — thin wrapper around `next-themes`'s `ThemeProvider` configured with `attribute="class"` and `enableSystem`.
+- Create: `src/components/theme/dark-mode-toggle.tsx` + `.test.tsx` — `<Button size="icon">` cycling light → dark → system, calling `setTheme()` from `useTheme()`.
+- Modify: `src/app/globals.css` — shadcn already wrote the dark-mode variant. Verify the `@custom-variant dark (&:is(.dark *));` (or v4 equivalent) is present. Don't duplicate.
+- Modify: `src/app/layout.tsx` — add `suppressHydrationWarning` to `<html>` (next-themes requirement), render `<ThemeInitializer />` in `<head>`, wrap children in `<ThemeProvider>`.
 
 **Tests:**
 - `dark-mode-toggle.test.tsx`: click cycles `light → dark → system → light`. Mock `next-themes`'s `useTheme` directly via vi-mock or wrap test in a stub `<ThemeProvider>`.
