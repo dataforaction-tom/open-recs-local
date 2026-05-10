@@ -99,10 +99,18 @@ function selectOcr(env: Env): OcrProvider {
   }
 }
 
+// Module-level singleton for the fake storage so every createProviders()
+// call within a process shares the same in-memory Map. Real adapters
+// (S3, GCS, etc.) are stateless from the provider's perspective — their
+// "backend" is external. The fake's backend is the Map; we mirror the
+// real-adapter contract by reusing it.
+let fakeStorageSingleton: StorageProvider | null = null;
+
 function selectStorage(env: Env): StorageProvider {
   switch (env.STORAGE_PROVIDER) {
     case 'fake':
-      return createFakeStorage();
+      if (!fakeStorageSingleton) fakeStorageSingleton = createFakeStorage();
+      return fakeStorageSingleton;
     default:
       return notWired('storage', env.STORAGE_PROVIDER);
   }

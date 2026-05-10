@@ -1,6 +1,6 @@
-import { eq } from 'drizzle-orm';
-import { sourceFiles, sources } from '../db/schema';
-import { AuthorizationError, type RepoContext } from './types';
+import { and, asc, eq } from 'drizzle-orm';
+import { sourceFiles, sourcePages, sources } from '../db/schema';
+import { AuthorizationError, NotFoundError, type RepoContext } from './types';
 
 type SourceRow = {
   id: string;
@@ -86,5 +86,129 @@ export async function createSourceFile(
     .returning({ id: sourceFiles.id });
   if (!inserted) throw new Error('createSourceFile: no row returned');
   return inserted;
+}
+
+export type SourceFileLookup = {
+  storageKey: string;
+  mimeType: string;
+  sourceId: string;
+  role: 'original' | 'page-image' | 'extracted-asset';
+};
+
+/**
+ * Look up a `source_files` row by its storage key, returning null if no row
+ * matches OR the joined source isn't visible to the viewer. The signed-URL
+ * route relies on this for ownership gating — the HMAC token only proves the
+ * key was minted by us, not that the current viewer can see it.
+ */
+export async function findSourceFileByKey(
+  ctx: RepoContext,
+  storageKey: string,
+): Promise<SourceFileLookup | null> {
+  const rows = await ctx.db
+    .select({
+      storageKey: sourceFiles.storageKey,
+      mimeType: sourceFiles.mimeType,
+      sourceId: sourceFiles.sourceId,
+      role: sourceFiles.role,
+      isPrivate: sources.isPrivate,
+      ownerUserId: sources.ownerUserId,
+      slug: sources.slug,
+      title: sources.title,
+      sourceIdJoin: sources.id,
+    })
+    .from(sourceFiles)
+    .innerJoin(sources, eq(sources.id, sourceFiles.sourceId))
+    .where(eq(sourceFiles.storageKey, storageKey))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+
+  const sourceRow: SourceRow = {
+    id: row.sourceIdJoin,
+    slug: row.slug,
+    title: row.title,
+    isPrivate: row.isPrivate,
+    ownerUserId: row.ownerUserId,
+  };
+  if (!canRead(ctx, sourceRow)) return null;
+
+  return {
+    storageKey: row.storageKey,
+    mimeType: row.mimeType,
+    sourceId: row.sourceId,
+    role: row.role,
+  };
+}
+
+export type SourcePageRow = {
+  pageNumber: number;
+  markdown: string;
+  imageRefs: string[];
+};
+
+export type SourceWithPages = {
+  source: {
+    id: string;
+    slug: string;
+    title: string;
+    isPrivate: boolean;
+    ownerUserId: string | null;
+  };
+  pages: SourcePageRow[];
+  /** Storage key of the `role: 'original'` file, or null if not uploaded yet. */
+  originalPdfKey: string | null;
+};
+
+/**
+ * Source-detail page reader. Throws NotFoundError when the slug doesn't
+ * exist OR the joined source isn't visible to the viewer — same error in
+ * both cases so the route layer doesn't need to distinguish (and we don't
+ * leak slug existence to anonymous viewers).
+ */
+export async function getSourceWithPagesBySlug(
+  ctx: RepoContext,
+  slug: string,
+): Promise<SourceWithPages> {
+  const [src] = await ctx.db
+    .select({
+      id: sources.id,
+      slug: sources.slug,
+      title: sources.title,
+      isPrivate: sources.isPrivate,
+      ownerUserId: sources.ownerUserId,
+    })
+    .from(sources)
+    .where(eq(sources.slug, slug))
+    .limit(1);
+  if (!src || !canRead(ctx, src)) throw new NotFoundError(`source not found: ${slug}`);
+
+  const [pageRows, pdfRows] = await Promise.all([
+    ctx.db
+      .select({
+        pageNumber: sourcePages.pageNumber,
+        markdown: sourcePages.markdown,
+        imageRefs: sourcePages.imageRefs,
+      })
+      .from(sourcePages)
+      .where(eq(sourcePages.sourceId, src.id))
+      .orderBy(asc(sourcePages.pageNumber)),
+    ctx.db
+      .select({ storageKey: sourceFiles.storageKey })
+      .from(sourceFiles)
+      .where(and(eq(sourceFiles.sourceId, src.id), eq(sourceFiles.role, 'original')))
+      .limit(1),
+  ]);
+
+  return {
+    source: src,
+    pages: pageRows.map((r) => ({
+      pageNumber: r.pageNumber,
+      markdown: r.markdown,
+      imageRefs: r.imageRefs ?? [],
+    })),
+    originalPdfKey: pdfRows[0]?.storageKey ?? null,
+  };
 }
 
