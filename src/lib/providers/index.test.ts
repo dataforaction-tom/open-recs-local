@@ -33,6 +33,7 @@ describe('createProviders', () => {
       DATABASE_URL: 'postgres://x/y',
       BETTER_AUTH_SECRET: 'x'.repeat(32),
       BETTER_AUTH_URL: 'http://localhost:3000',
+      FILE_TOKEN_SECRET: 'x'.repeat(32),
     });
     expect(() => createProviders(hosted)).toThrow(/hosted auth is not wired yet/i);
   });
