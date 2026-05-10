@@ -91,3 +91,110 @@ export async function searchRecommendationsKeyword(
     sourceId: row.sourceId,
   }));
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function composeAuthFilter(ctx: RepoContext) {
+  if (ctx.auth.isSystem) return sql`TRUE`;
+  const viewerId = ctx.auth.user?.id;
+  if (viewerId && UUID_RE.test(viewerId)) {
+    return sql`(s.is_private = FALSE OR s.owner_user_id = ${viewerId}::uuid)`;
+  }
+  return sql`s.is_private = FALSE`;
+}
+
+export type RecommendationDetail = {
+  id: string;
+  title: string;
+  body: string;
+  sourceId: string;
+  sourceSlug: string;
+  sourceTitle: string;
+  pageAnchor: number | null;
+  hasEmbedding: boolean;
+};
+
+export async function findRecommendationById(
+  ctx: RepoContext,
+  id: string,
+): Promise<RecommendationDetail | null> {
+  if (!UUID_RE.test(id)) return null;
+  const auth = composeAuthFilter(ctx);
+  const rows = await ctx.db.execute<{
+    id: string;
+    title: string;
+    body: string;
+    sourceId: string;
+    sourceSlug: string;
+    sourceTitle: string;
+    pageAnchor: number | null;
+    hasEmbedding: boolean;
+  }>(sql`
+    SELECT
+      r.id::text       AS "id",
+      r.title          AS "title",
+      r.body           AS "body",
+      r.source_id      AS "sourceId",
+      s.slug           AS "sourceSlug",
+      s.title          AS "sourceTitle",
+      r.page_anchor    AS "pageAnchor",
+      (r.embedding IS NOT NULL) AS "hasEmbedding"
+    FROM recommendations r
+    JOIN sources s ON s.id = r.source_id
+    WHERE r.id = ${id}::uuid
+      AND ${auth}
+    LIMIT 1
+  `);
+  return rows[0] ?? null;
+}
+
+export type SimilarRec = {
+  id: string;
+  title: string;
+  sourceSlug: string;
+  distance: number;
+};
+
+/**
+ * Top-K most-similar recs by pgvector cosine distance, excluding the source
+ * rec itself. Returns [] when the source rec has no embedding yet (still
+ * being processed) — caller renders an empty state. Auth filter mirrors
+ * the pattern in searchRecommendationsKeyword.
+ */
+export async function findSimilarRecommendations(
+  ctx: RepoContext,
+  id: string,
+  k = 5,
+): Promise<SimilarRec[]> {
+  if (!UUID_RE.test(id)) return [];
+  const auth = composeAuthFilter(ctx);
+  const rows = await ctx.db.execute<{
+    id: string;
+    title: string;
+    sourceSlug: string;
+    distance: number | string;
+  }>(sql`
+    WITH self AS (
+      SELECT embedding FROM recommendations WHERE id = ${id}::uuid
+    )
+    SELECT
+      r.id::text     AS "id",
+      r.title        AS "title",
+      s.slug         AS "sourceSlug",
+      (r.embedding <=> (SELECT embedding FROM self)) AS "distance"
+    FROM recommendations r
+    JOIN sources s ON s.id = r.source_id
+    WHERE r.id != ${id}::uuid
+      AND r.embedding IS NOT NULL
+      AND (SELECT embedding FROM self) IS NOT NULL
+      AND ${auth}
+    ORDER BY r.embedding <=> (SELECT embedding FROM self)
+    LIMIT ${k}
+  `);
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    sourceSlug: row.sourceSlug,
+    distance: Number(row.distance),
+  }));
+}
