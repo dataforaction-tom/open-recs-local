@@ -1,7 +1,7 @@
 # Plan
 
 > Last updated: 2026-05-10
-> Status: Phase 3 complete — Phase 4 (UI shell) up next
+> Status: Phase 4 complete — Phase 5 (source viewer) up next
 
 ## Objective
 
@@ -17,7 +17,7 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 
 ## Current phase
 
-**Phase 4 — UI shell.** Nav, DecisionFlow landing, dark mode, feature gates. The Phase 3 search endpoints (`/api/search`, `/api/keyword-search`, `/api/chat-search`) are ready for the UI to consume. See `docs/plans/2026-04-19-open-recs-local-plan.md` for phase 4 exit criteria; a TDD task breakdown will be produced before implementation.
+**Phase 5 — Source viewer.** Split-pane markdown + PDF viewer with synced scroll, signed-URL image rendering. Phase 4 shipped the app shell that hosts this view.
 
 ## Tasks (phase-level)
 
@@ -25,9 +25,9 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 - [x] Phase 1 — Schema + provider skeleton (merged as PR #2)
 - [x] Docs — README + mkdocs site (merged as PR #3)
 - [x] Phase 2 — Core pipeline (merged as PR #4)
-- [x] Phase 3 — Search surfaces (PR pending)
-- [~] **CURRENT** Phase 4 — UI shell (nav, DecisionFlow, dark mode, feature gates)
-- [ ] Phase 5 — Source viewer (split-pane markdown + PDF)
+- [x] Phase 3 — Search surfaces (merged as PR #5)
+- [x] Phase 4 — UI shell (PR pending)
+- [~] **CURRENT** Phase 5 — Source viewer (split-pane markdown + PDF)
 - [ ] Phase 6 — Recommendations UI (TanStack Table, NetworkViz, SimilarRecs)
 - [ ] Phase 7 — Progress updates (form, list, status transitions)
 - [ ] Phase 8 — Hosted-mode (Better-auth, ownership, admin)
