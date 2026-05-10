@@ -28,9 +28,8 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 - [x] Phase 3 — Search surfaces (merged as PR #5)
 - [x] Phase 4 — UI shell (merged as PR #7)
 - [x] Phase 5 — Source viewer (merged as PR #8)
-- [x] Phase 6 — Recommendations UI (PR pending)
-- [~] **CURRENT** Phase 7 — Progress updates
-- [ ] Phase 7 — Progress updates (form, list, status transitions)
+- [x] Phase 6 — Recommendations UI (merged as PR #9)
+- [~] **CURRENT** Phase 7 — Progress updates (form, list, status transitions, EditableSelectCell)
 - [ ] Phase 8 — Hosted-mode (Better-auth, ownership, admin)
 - [ ] Phase 9 — Analytics (Chart.js, cache, scheduled refresh)
 - [ ] Phase 10 — Polish + docs + 1.0 release

@@ -13,10 +13,11 @@ stateDiagram-v2
     Phase3 --> Phase4: search surfaces merged
     Phase4 --> Phase5: UI shell merged
     Phase5 --> Phase6: source viewer merged
-    Phase6 --> PhaseN: recommendations UI
+    Phase6 --> Phase7: recommendations UI merged
+    Phase7 --> PhaseN: progress updates
     PhaseN --> Live: 1.0 release
 
-    note right of Phase6: ← WE ARE HERE
+    note right of Phase7: ← WE ARE HERE
 ```
 
 - **Phase 0** ✅ merged (PR #1) — Next.js 16 + Postgres compose, CI green, MIT license.
@@ -27,7 +28,7 @@ stateDiagram-v2
 - **Codex review fixes** ✅ merged (PR #6) — chat-search DB pool leak; query-embedding-cache NUL byte that broke git's diff classification.
 - **Phase 4** ✅ merged (PR #7) — shadcn/ui-based primitives, dark mode (next-themes), three route groups `(app)/(marketing)/(auth)`, mode-aware root redirect, `<FeatureGate>`, Navigation + Footer, DecisionFlow first-launch flow, dashboard stub with recent jobs + sources cards.
 - **Phase 5** ✅ merged (PR #8) — `/sources/[slug]` split-pane viewer with synced scroll via IntersectionObserver, HMAC-signed `/api/files/[token]` route + `signFileToken/verifyFileToken` helpers, image-rewrite rehype plugin, `useScrollSync` hook, `getSourceWithPagesBySlug` repo helper.
-- **Phase 6** ✅ implementation done (PR pending) — `/recommendations` index (TanStack Table, URL-driven filters, hybrid/keyword toggle), `/recommendations/[id]` detail with shadcn Tabs (Overview / Similar / Progress), `findRecommendationById` + `findSimilarRecommendations` + `listRecentRecommendations` repo helpers, `<FilterChips>`, `useSearchParamsState` hook.
+- **Phase 6** ✅ merged (PR #9) — `/recommendations` index (TanStack Table, URL-driven filters, hybrid/keyword toggle), `/recommendations/[id]` detail with shadcn Tabs (Overview / Similar / Progress), `findRecommendationById` + `findSimilarRecommendations` + `listRecentRecommendations` repo helpers, `<FilterChips>`, `useSearchParamsState` hook.
 - **Phase 7** 🔧 starting — progress updates (stakeholder notes, evidence, status transitions, EditableSelectCell on the table).
 
 ## Component Status
