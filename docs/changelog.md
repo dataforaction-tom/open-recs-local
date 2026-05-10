@@ -6,7 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-Nothing yet — Phase 6 (recommendations UI) is being planned.
+Nothing yet — Phase 7 (progress updates) is being planned.
+
+## 2026-05-10 — Phase 6: Recommendations UI
+
+### Added
+
+- **Recommendations index.** `/recommendations` lists every recommendation across every source in a sortable table. Type to filter by hybrid or keyword search; the URL keeps the filter state so links are shareable and the back button works.
+- **Recommendation detail.** `/recommendations/<id>` opens a single rec with three tabs: Overview, Similar (top-5 most-related recs by embedding distance), and Progress (placeholder until Phase 7).
+- **Mode toggle.** A button in the index switches between hybrid (RRF) and keyword search without leaving the page.
+
+### Notes
+
+- The "current status" column on the table and inline status editing are intentionally deferred to Phase 7, where the progress-update writes naturally fit.
+- The Network graph view from the design is deferred to Phase 9, alongside the analytics canvas tooling.
 
 ## 2026-05-10 — Phase 5: Source viewer
 

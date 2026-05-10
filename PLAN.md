@@ -1,7 +1,7 @@
 # Plan
 
 > Last updated: 2026-05-10
-> Status: Phase 5 complete — Phase 6 (recommendations UI) up next
+> Status: Phase 6 complete — Phase 7 (progress updates) up next
 
 ## Objective
 
@@ -17,7 +17,7 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 
 ## Current phase
 
-**Phase 6 — Recommendations UI.** Recommendations index (TanStack Table), single rec detail, NetworkViz graph, SimilarRecommendations panel. Phase 5 shipped the source viewer; Phase 6 wires the search service surfaces (`/api/search`, `/api/keyword-search`) into a usable index.
+**Phase 7 — Progress updates.** Stakeholders post progress updates on a rec (notes, evidence, status transitions). Builds the EditableSelectCell (deferred from Phase 6) and fills the empty Progress tab on the detail page.
 
 ## Tasks (phase-level)
 
@@ -27,8 +27,9 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 - [x] Phase 2 — Core pipeline (merged as PR #4)
 - [x] Phase 3 — Search surfaces (merged as PR #5)
 - [x] Phase 4 — UI shell (merged as PR #7)
-- [x] Phase 5 — Source viewer (PR pending)
-- [~] **CURRENT** Phase 6 — Recommendations UI (TanStack Table, NetworkViz, SimilarRecs)
+- [x] Phase 5 — Source viewer (merged as PR #8)
+- [x] Phase 6 — Recommendations UI (PR pending)
+- [~] **CURRENT** Phase 7 — Progress updates
 - [ ] Phase 7 — Progress updates (form, list, status transitions)
 - [ ] Phase 8 — Hosted-mode (Better-auth, ownership, admin)
 - [ ] Phase 9 — Analytics (Chart.js, cache, scheduled refresh)
