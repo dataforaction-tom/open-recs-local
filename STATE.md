@@ -26,8 +26,9 @@ stateDiagram-v2
 - **Phase 3** ✅ merged (PR #5) — `/api/search` (hybrid RRF), `/api/keyword-search` (keyword + degrade path), `POST /api/chat-search` (streaming RAG over `source_pages` with `[[source:slug#page:N]]` citations), 60s query embedding cache, citation marker grammar.
 - **Codex review fixes** ✅ merged (PR #6) — chat-search DB pool leak; query-embedding-cache NUL byte that broke git's diff classification.
 - **Phase 4** ✅ merged (PR #7) — shadcn/ui-based primitives, dark mode (next-themes), three route groups `(app)/(marketing)/(auth)`, mode-aware root redirect, `<FeatureGate>`, Navigation + Footer, DecisionFlow first-launch flow, dashboard stub with recent jobs + sources cards.
-- **Phase 5** ✅ implementation done (PR pending) — `/sources/[slug]` split-pane viewer (`<SourceMarkdown>` + `<SourcePdfViewer>` via react-pdf, react-resizable-panels), HMAC-signed `/api/files/[token]` route + `signFileToken/verifyFileToken` helpers, image-rewrite rehype plugin, `useScrollSync` debounced two-pane state, `getSourceWithPagesBySlug` repo helper.
-- **Phase 6** 🔧 starting — recommendations UI (TanStack Table, single rec detail, NetworkViz, SimilarRecommendations).
+- **Phase 5** ✅ merged (PR #8) — `/sources/[slug]` split-pane viewer with synced scroll via IntersectionObserver, HMAC-signed `/api/files/[token]` route + `signFileToken/verifyFileToken` helpers, image-rewrite rehype plugin, `useScrollSync` hook, `getSourceWithPagesBySlug` repo helper.
+- **Phase 6** ✅ implementation done (PR pending) — `/recommendations` index (TanStack Table, URL-driven filters, hybrid/keyword toggle), `/recommendations/[id]` detail with shadcn Tabs (Overview / Similar / Progress), `findRecommendationById` + `findSimilarRecommendations` + `listRecentRecommendations` repo helpers, `<FilterChips>`, `useSearchParamsState` hook.
+- **Phase 7** 🔧 starting — progress updates (stakeholder notes, evidence, status transitions, EditableSelectCell on the table).
 
 ## Component Status
 
@@ -54,7 +55,9 @@ stateDiagram-v2
 | Dashboard stub | ✅ | recent jobs + recent sources cards |
 | Source viewer (split-pane PDF) | ✅ | react-pdf + react-resizable-panels + signed-URL route |
 | Signed file URLs | ✅ | HMAC-SHA256 + 5min default TTL, served via `/api/files/[token]` |
-| TanStack Table / search UI / chat UI | ⏳ | Phase 6 |
+| Recommendations index + detail | ✅ | TanStack Table, URL-driven filters, shadcn Tabs |
+| Progress updates UI | ⏳ | Phase 7 |
+| NetworkViz / chat UI | ⏳ | Phase 9 (NetworkViz) / TBD (chat UI) |
 | Better-auth / hosted mode | ⏳ | Phase 8 |
 
 ## Dependencies
@@ -66,7 +69,7 @@ stateDiagram-v2
 | pnpm 10.29.3 / Node 20 local, 22 in CI + Docker | ✅ Working | pinned via corepack |
 | Vitest | ✅ Working | pinned to `^3.1.x` (rolldown/Windows issue with 4.x) |
 
-## Carry-overs flagged for Phase 6+
+## Carry-overs flagged for Phase 7+
 
 - `uuid` columns for user refs (`owner_user_id`, `set_by_user_id`, `resolved_by`, `author_user_id`) have no FKs yet — wire up when Better-auth schema lands (Phase 8).
 - Optional ESLint tweak: `@typescript-eslint/no-unused-vars` with `argsIgnorePattern: '^_'` to silence warnings on provider interfaces (currently 6 lint warnings, 0 errors).
@@ -83,6 +86,9 @@ stateDiagram-v2
 - IntersectionObserver wiring + continuous-scroll PDF render are now in place — markdown ↔ PDF scroll sync is fully plumbed. Tune the debounce or scroll behaviour in Phase 10 polish if the UX feels off in QA.
 - Mobile layout for the source viewer is desktop-first only (split-pane assumes width). Add a stacked-pane mode below `md:` in Phase 10.
 - Markdown renderer uses `prose` Tailwind classes, but `@tailwindcss/typography` isn't actually installed — those classes silently no-op. If markdown looks unstyled, install the plugin or hand-author rules.
+- The recommendations index renders hybrid/keyword search results without the human-readable source title (the search service's RrfRow only carries sourceSlug). Phase 7 should extend the search service to join sourceTitle, or accept the slug as the visible label.
+- The recommendations table omits the current-status column. Phase 7 wires the latest-status lateral join + EditableSelectCell.
+- NetworkViz (canvas force-directed graph) is deferred from Phase 6 to Phase 9 with the analytics canvas tooling.
 
 **Resolved in Phase 2:**
 - ~~`tsx` in devDependencies~~ → moved to prod deps; worker image and `pnpm db:migrate` work in the prod container.
