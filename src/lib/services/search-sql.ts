@@ -32,6 +32,23 @@ export type RunKeywordArgs = {
   filters?: SearchFilters;
 };
 
+export type SourcePageHit = {
+  id: string;
+  sourceId: string;
+  sourceSlug: string;
+  pageNumber: number;
+  markdown: string;
+  rrfScore: number;
+};
+
+export type RunSourcePagesRrfArgs = {
+  q: string;
+  queryEmbedding: number[];
+  topK?: number;
+};
+
+const DEFAULT_TOP_K = 8;
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const DEFAULT_LIMIT = 50;
@@ -224,4 +241,82 @@ export async function runRecommendationsKeyword(
   `);
 
   return rows.map(toRrfRow);
+}
+
+type RawSourcePageRow = {
+  id: string;
+  sourceId: string;
+  sourceSlug: string;
+  pageNumber: number;
+  markdown: string;
+  rrfScore: number;
+};
+
+export async function runSourcePagesRrf(
+  ctx: RepoContext,
+  args: RunSourcePagesRrfArgs,
+): Promise<SourcePageHit[]> {
+  const topK = args.topK ?? DEFAULT_TOP_K;
+  const tsQuery = sql`websearch_to_tsquery('english', ${args.q})`;
+  const auth = composeAuthFilter(ctx);
+  const vectorLit = arrayToVectorLiteral(args.queryEmbedding);
+
+  // source_pages has no generated tsv column — recommendations does. We
+  // compute to_tsvector inline; if chat-search latency suffers, add a
+  // generated tsv + GIN index in a follow-up migration.
+  const rows = await ctx.db.execute<RawSourcePageRow>(sql`
+    WITH keyword_ranked AS (
+      SELECT p.id,
+        row_number() OVER (
+          ORDER BY ts_rank_cd(
+            to_tsvector('english', coalesce(p.markdown, '')),
+            ${tsQuery}
+          ) DESC, p.page_number
+        ) AS rank
+      FROM source_pages p
+      JOIN sources s ON s.id = p.source_id
+      WHERE to_tsvector('english', coalesce(p.markdown, '')) @@ ${tsQuery}
+        AND ${auth}
+      LIMIT ${PER_CTE_LIMIT}
+    ),
+    vector_ranked AS (
+      SELECT p.id,
+        row_number() OVER (
+          ORDER BY p.embedding <=> ${sql.raw(`'${vectorLit}'`)}::vector(768), p.page_number
+        ) AS rank
+      FROM source_pages p
+      JOIN sources s ON s.id = p.source_id
+      WHERE p.embedding IS NOT NULL
+        AND ${auth}
+      LIMIT ${PER_CTE_LIMIT}
+    ),
+    fused AS (
+      SELECT coalesce(kr.id, vr.id) AS id,
+        1.0 / (60 + coalesce(kr.rank, 1000))
+          + 1.0 / (60 + coalesce(vr.rank, 1000)) AS rrf_score
+      FROM keyword_ranked kr
+      FULL OUTER JOIN vector_ranked vr ON vr.id = kr.id
+    )
+    SELECT
+      p.id          AS "id",
+      p.source_id   AS "sourceId",
+      s.slug        AS "sourceSlug",
+      p.page_number AS "pageNumber",
+      p.markdown    AS "markdown",
+      f.rrf_score   AS "rrfScore"
+    FROM fused f
+    JOIN source_pages p ON p.id = f.id
+    JOIN sources s ON s.id = p.source_id
+    ORDER BY f.rrf_score DESC, p.page_number
+    LIMIT ${topK}
+  `);
+
+  return rows.map((row) => ({
+    id: row.id,
+    sourceId: row.sourceId,
+    sourceSlug: row.sourceSlug,
+    pageNumber: Number(row.pageNumber),
+    markdown: row.markdown,
+    rrfScore: Number(row.rrfScore),
+  }));
 }

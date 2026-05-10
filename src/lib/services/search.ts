@@ -4,8 +4,10 @@ import { defaultQueryEmbeddingCache, type QueryEmbeddingCache } from './query-em
 import {
   runRecommendationsKeyword,
   runRecommendationsRrf,
+  runSourcePagesRrf,
   type RrfRow,
   type SearchFilters,
+  type SourcePageHit,
 } from './search-sql';
 
 export type SearchMode = 'hybrid' | 'keyword';
@@ -58,5 +60,38 @@ export async function searchRecommendations(
     queryEmbedding,
     ...(limit !== undefined ? { limit } : {}),
     ...(filters ? { filters } : {}),
+  });
+}
+
+export type SearchSourcePagesInput = {
+  ctx: RepoContext;
+  q: string;
+  topK?: number;
+};
+
+export type SearchSourcePagesDeps = {
+  embedding: EmbeddingProvider;
+  cache?: QueryEmbeddingCache;
+};
+
+export async function searchSourcePages(
+  input: SearchSourcePagesInput,
+  deps: SearchSourcePagesDeps,
+): Promise<SourcePageHit[]> {
+  const { ctx, q, topK } = input;
+  const embedding = deps.embedding;
+  const loader = async (): Promise<number[]> => {
+    const result = await embedding.embed([q]);
+    const first = result[0];
+    if (!first) throw new Error('embedding provider returned no vector');
+    return first;
+  };
+  const cache = deps.cache ?? defaultQueryEmbeddingCache;
+  const queryEmbedding = await cache.get(embedding.model, q, loader);
+
+  return runSourcePagesRrf(ctx, {
+    q,
+    queryEmbedding,
+    ...(topK !== undefined ? { topK } : {}),
   });
 }

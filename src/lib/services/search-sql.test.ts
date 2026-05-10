@@ -2,9 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startPostgres, type StartedPg } from '../../../tests/helpers/pg-container';
 import { applyMigrations } from '../../../tests/helpers/migrate';
 import { createDb, type DbClient } from '../db/client';
-import { recommendations, sources } from '../db/schema';
+import { recommendations, sourcePages, sources } from '../db/schema';
 import type { RepoContext } from '../repositories/types';
-import { runRecommendationsKeyword, runRecommendationsRrf } from './search-sql';
+import {
+  runRecommendationsKeyword,
+  runRecommendationsRrf,
+  runSourcePagesRrf,
+} from './search-sql';
 
 let pg: StartedPg;
 let client: DbClient;
@@ -186,5 +190,69 @@ describe('runRecommendationsKeyword', () => {
     expect(hits[0]?.vectorRank).toBeNull();
     expect(hits[0]?.keywordRank).toBe(1);
     expect(hits.map((h) => h.title)).not.toContain('unrelated note');
+  });
+});
+
+describe('runSourcePagesRrf', () => {
+  it('ranks the page that wins on BOTH keyword and vector at the top', async () => {
+    const [src] = await client.db
+      .insert(sources)
+      .values({ slug: 'sp-rrf', title: 'sp-rrf' })
+      .returning({ id: sources.id });
+
+    await client.db.insert(sourcePages).values([
+      {
+        sourceId: src!.id,
+        pageNumber: 1,
+        markdown: 'Auditor rotation should occur every five years.',
+        embedding: vec(0),
+      },
+      {
+        sourceId: src!.id,
+        pageNumber: 2,
+        markdown: 'General preface and acknowledgements.',
+        embedding: vec(7),
+      },
+      {
+        sourceId: src!.id,
+        pageNumber: 3,
+        markdown: 'Glossary of accounting terms unrelated to topic.',
+        embedding: vec(0, 0.5),
+      },
+    ]);
+
+    const hits = await runSourcePagesRrf(ctx(), {
+      q: 'auditor',
+      queryEmbedding: vec(0),
+      topK: 5,
+    });
+
+    expect(hits[0]?.pageNumber).toBe(1);
+    expect(hits[0]?.sourceSlug).toBe('sp-rrf');
+    expect(hits[0]?.markdown).toContain('Auditor');
+    expect(typeof hits[0]?.rrfScore).toBe('number');
+  });
+
+  it('respects topK', async () => {
+    const [src] = await client.db
+      .insert(sources)
+      .values({ slug: 'sp-topk', title: 'sp-topk' })
+      .returning({ id: sources.id });
+
+    const rows = Array.from({ length: 10 }, (_, i) => ({
+      sourceId: src!.id,
+      pageNumber: i + 1,
+      markdown: `kingfisher page ${i + 1}`,
+      embedding: vec(i % 10),
+    }));
+    await client.db.insert(sourcePages).values(rows);
+
+    const hits = await runSourcePagesRrf(ctx(), {
+      q: 'kingfisher',
+      queryEmbedding: vec(0),
+      topK: 3,
+    });
+
+    expect(hits.length).toBe(3);
   });
 });

@@ -2,11 +2,11 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { startPostgres, type StartedPg } from '../../../tests/helpers/pg-container';
 import { applyMigrations } from '../../../tests/helpers/migrate';
 import { createDb, type DbClient } from '../db/client';
-import { recommendations, sources } from '../db/schema';
+import { recommendations, sourcePages, sources } from '../db/schema';
 import type { EmbeddingProvider } from '../providers/embedding/types';
 import type { RepoContext } from '../repositories/types';
 import { createQueryEmbeddingCache } from './query-embedding-cache';
-import { searchRecommendations } from './search';
+import { searchRecommendations, searchSourcePages } from './search';
 
 let pg: StartedPg;
 let client: DbClient;
@@ -197,5 +197,71 @@ describe('searchRecommendations', () => {
     );
 
     expect(hits.map((h) => h.title)).toEqual(['kingfisher in s1']);
+  });
+});
+
+describe('searchSourcePages', () => {
+  it('returns hybrid-ranked source pages for a chat query', async () => {
+    const [src] = await client.db
+      .insert(sources)
+      .values({ slug: 'svc-sp-1', title: 'svc-sp-1' })
+      .returning({ id: sources.id });
+    await client.db.insert(sourcePages).values([
+      {
+        sourceId: src!.id,
+        pageNumber: 1,
+        markdown: 'Auditor rotation policy: rotate every five years.',
+        embedding: vec(0),
+      },
+      {
+        sourceId: src!.id,
+        pageNumber: 2,
+        markdown: 'Unrelated preface text about the report scope.',
+        embedding: vec(7),
+      },
+    ]);
+
+    const provider: EmbeddingProvider = {
+      name: 'fake',
+      model: 'sp-svc-m',
+      dimensions: 768,
+      embed: async () => [vec(0)],
+    };
+
+    const hits = await searchSourcePages(
+      { ctx: ctx(), q: 'auditor' },
+      { embedding: provider },
+    );
+
+    expect(hits[0]?.pageNumber).toBe(1);
+    expect(hits[0]?.sourceSlug).toBe('svc-sp-1');
+  });
+
+  it('uses topK to cap returned pages', async () => {
+    const [src] = await client.db
+      .insert(sources)
+      .values({ slug: 'svc-sp-topk', title: 'svc-sp-topk' })
+      .returning({ id: sources.id });
+    await client.db.insert(sourcePages).values(
+      Array.from({ length: 12 }, (_, i) => ({
+        sourceId: src!.id,
+        pageNumber: i + 1,
+        markdown: `policy page ${i + 1}`,
+        embedding: vec(i % 10),
+      })),
+    );
+    const provider: EmbeddingProvider = {
+      name: 'fake',
+      model: 'sp-svc-topk',
+      dimensions: 768,
+      embed: async () => [vec(0)],
+    };
+
+    const hits = await searchSourcePages(
+      { ctx: ctx(), q: 'policy', topK: 4 },
+      { embedding: provider },
+    );
+
+    expect(hits.length).toBe(4);
   });
 });
