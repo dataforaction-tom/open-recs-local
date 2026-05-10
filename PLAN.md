@@ -1,7 +1,7 @@
 # Plan
 
-> Last updated: 2026-05-09
-> Status: In progress — Phase 3 (Search surfaces)
+> Last updated: 2026-05-10
+> Status: Phase 3 complete — Phase 4 (UI shell) up next
 
 ## Objective
 
@@ -17,7 +17,7 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 
 ## Current phase
 
-**Phase 3 — Search surfaces.** Hybrid search (RRF over pgvector + tsvector), keyword-only variant, streaming chat-search with citations, query embedding cache. See `docs/plans/2026-04-19-open-recs-local-plan.md` for phase 3 exit criteria; a TDD task breakdown will be produced via `superpowers:writing-plans`.
+**Phase 4 — UI shell.** Nav, DecisionFlow landing, dark mode, feature gates. The Phase 3 search endpoints (`/api/search`, `/api/keyword-search`, `/api/chat-search`) are ready for the UI to consume. See `docs/plans/2026-04-19-open-recs-local-plan.md` for phase 4 exit criteria; a TDD task breakdown will be produced before implementation.
 
 ## Tasks (phase-level)
 
@@ -25,8 +25,8 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 - [x] Phase 1 — Schema + provider skeleton (merged as PR #2)
 - [x] Docs — README + mkdocs site (merged as PR #3)
 - [x] Phase 2 — Core pipeline (merged as PR #4)
-- [~] **CURRENT** Phase 3 — Search surfaces (keyword, hybrid, chat)
-- [ ] Phase 4 — UI shell (nav, DecisionFlow, dark mode, feature gates)
+- [x] Phase 3 — Search surfaces (PR pending)
+- [~] **CURRENT** Phase 4 — UI shell (nav, DecisionFlow, dark mode, feature gates)
 - [ ] Phase 5 — Source viewer (split-pane markdown + PDF)
 - [ ] Phase 6 — Recommendations UI (TanStack Table, NetworkViz, SimilarRecs)
 - [ ] Phase 7 — Progress updates (form, list, status transitions)
@@ -55,8 +55,10 @@ Before each phase after 0/1, re-enter `superpowers:writing-plans` with the desig
 ## Open Questions
 
 - [ ] Whether to offer a v1-Supabase export importer for users with existing data (non-blocking; decide in Phase 10).
-- [ ] Whether sub-page chunking improves retrieval quality enough to justify the complexity (decide after Phase 3 via fixture benchmarks).
-- [ ] Final choice of default local LLM model — Llama 3.1 8B vs Qwen vs Mistral (decide at start of Phase 2).
+- [ ] Whether sub-page chunking improves retrieval quality enough to justify the complexity (decide after Phase 3 via fixture benchmarks — still open, defer to Phase 6 once UI exposes hit quality).
+- [ ] Whether to add a generated `tsv` column on `source_pages` to put chat-search retrieval back on the GIN index path (decide if Phase 4+ surfaces latency).
+- [ ] Whether to retire `/api/recommendations` immediately or in Phase 6 with the table UI (currently scheduled for Phase 6).
+- [x] ~~Final choice of default local LLM model — Llama 3.1 8B vs Qwen vs Mistral~~ — resolved at start of Phase 2: defaults are `llama3.1:8b` for chat and `nomic-embed-text` for embeddings (both env-overridable).
 
 ## Out of Scope
 
