@@ -133,6 +133,30 @@ describe('searchRecommendations', () => {
     expect(warnSpy).toHaveBeenCalled();
   });
 
+  it('hybrid mode without an explicit cache shares the singleton across calls', async () => {
+    await seedBadgerCorpus('svc-cache');
+    const embedSpy = vi.fn(async () => [vec(0)]);
+    const provider: EmbeddingProvider = {
+      name: 'fake',
+      // Distinct model name so this test doesn't collide with cache entries
+      // populated by the earlier "with cache" test (which uses 'fake-m').
+      model: 'singleton-test-model',
+      dimensions: 768,
+      embed: embedSpy,
+    };
+
+    await searchRecommendations(
+      { ctx: ctx(), q: 'badger', mode: 'hybrid' },
+      { embedding: provider },
+    );
+    await searchRecommendations(
+      { ctx: ctx(), q: 'badger', mode: 'hybrid' },
+      { embedding: provider },
+    );
+
+    expect(embedSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('hybrid mode passes filters through to the underlying RRF query', async () => {
     const [s1] = await client.db
       .insert(sources)

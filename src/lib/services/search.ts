@@ -1,6 +1,6 @@
 import type { EmbeddingProvider } from '../providers/embedding/types';
 import type { RepoContext } from '../repositories/types';
-import type { QueryEmbeddingCache } from './query-embedding-cache';
+import { defaultQueryEmbeddingCache, type QueryEmbeddingCache } from './query-embedding-cache';
 import {
   runRecommendationsKeyword,
   runRecommendationsRrf,
@@ -50,9 +50,8 @@ export async function searchRecommendations(
     return first;
   };
 
-  const queryEmbedding = deps.cache
-    ? await deps.cache.get(embedding.model, q, loader)
-    : await loader();
+  const cache = deps.cache ?? defaultQueryEmbeddingCache;
+  const queryEmbedding = await cache.get(embedding.model, q, loader);
 
   return runRecommendationsRrf(ctx, {
     q,
