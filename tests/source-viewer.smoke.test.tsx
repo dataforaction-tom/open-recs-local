@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SourceViewer } from '@/components/source-viewer/source-viewer';
 
@@ -11,6 +11,23 @@ vi.mock('react-pdf', () => ({
   ),
   pdfjs: { GlobalWorkerOptions: { workerSrc: '' } },
 }));
+
+beforeEach(() => {
+  class StubIO {
+    constructor(_cb: unknown) {}
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+    takeRecords() {
+      return [];
+    }
+  }
+  vi.stubGlobal('IntersectionObserver', StubIO);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const fixturePages = [
   {
@@ -38,7 +55,10 @@ describe('Source viewer smoke', () => {
     // "Sample report" appears in both the header and the markdown H1.
     expect(screen.getAllByText('Sample report').length).toBeGreaterThan(0);
     expect(document.querySelectorAll('section[data-page]')).toHaveLength(2);
-    expect(screen.getByTestId('stub-page')).toHaveAttribute('data-page', '1');
+    // Continuous-scroll PDF: one stub-page per fixture page.
+    const stubs = screen.getAllByTestId('stub-page');
+    expect(stubs).toHaveLength(2);
+    expect(stubs[0]?.getAttribute('data-page')).toBe('1');
     expect(screen.getAllByText(/page 1 \/ 2/i).length).toBeGreaterThan(0);
   });
 

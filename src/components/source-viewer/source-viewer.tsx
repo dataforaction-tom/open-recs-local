@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
+import { useScrollSync } from '@/lib/hooks/use-scroll-sync';
 import { SourceMarkdown, type SourcePage } from './source-markdown';
 import { SourcePdfViewer } from './source-pdf-viewer';
 
@@ -16,8 +17,8 @@ export type SourceViewerProps = {
 
 export function SourceViewer({ title, pages, pdfUrl }: SourceViewerProps) {
   const [savedSize, setSavedSize] = useLocalStorage<number>(SPLIT_KEY, 50);
-  const [activePage, setActivePage] = useState(1);
   const [totalPages, setTotalPages] = useState<number | undefined>(pages.length || undefined);
+  const { activePage, setActivePage } = useScrollSync({ initialPage: 1 });
 
   const handleTotalPages = (count: number) => setTotalPages(count);
 
@@ -40,9 +41,11 @@ export function SourceViewer({ title, pages, pdfUrl }: SourceViewerProps) {
             if (Number.isFinite(numeric)) setSavedSize(numeric);
           }}
         >
-          <div className="h-full overflow-auto px-4 py-4">
-            <SourceMarkdown pages={pages} />
-          </div>
+          <SourceMarkdown
+            pages={pages}
+            activePage={activePage}
+            onActivePageChange={setActivePage}
+          />
         </Panel>
         <Separator className="w-px bg-border transition-colors hover:w-1 hover:bg-primary/40" />
         <Panel minSize="25%" maxSize="75%">

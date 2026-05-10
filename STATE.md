@@ -80,7 +80,7 @@ stateDiagram-v2
 - `listRecentJobs` reads `pgboss.job` directly. A pg-boss major bump (v13+) may rename columns and require an update.
 - shadcn `components.json` chose `base-nova` preset (Base UI primitives, not Radix). If Radix becomes preferable later, swap via re-init.
 - `/api/files/[token]` tokens last 5 minutes by default; pages re-mint on reload but can't refresh in-place. Polish to Phase 10.
-- `useScrollSync` is implemented but not yet plumbed through the source viewer panes — IntersectionObserver wiring on each pane is Phase 6 (or earlier polish if scroll feels off in QA).
+- IntersectionObserver wiring + continuous-scroll PDF render are now in place — markdown ↔ PDF scroll sync is fully plumbed. Tune the debounce or scroll behaviour in Phase 10 polish if the UX feels off in QA.
 - Mobile layout for the source viewer is desktop-first only (split-pane assumes width). Add a stacked-pane mode below `md:` in Phase 10.
 - Markdown renderer uses `prose` Tailwind classes, but `@tailwindcss/typography` isn't actually installed — those classes silently no-op. If markdown looks unstyled, install the plugin or hand-author rules.
 

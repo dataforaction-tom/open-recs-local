@@ -1,10 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { SourcePdfViewer } from './source-pdf-viewer';
 
 let lastDocumentProps: { onLoadSuccess?: (info: { numPages: number }) => void } | null = null;
-let lastPageProps: { pageNumber?: number } | null = null;
+let lastPagePropsList: Array<{ pageNumber: number }> = [];
 
 vi.mock('react-pdf', () => ({
   Document: (props: { children: React.ReactNode; onLoadSuccess?: (info: { numPages: number }) => void }) => {
@@ -12,58 +11,97 @@ vi.mock('react-pdf', () => ({
     return <div data-testid="stub-document">{props.children}</div>;
   },
   Page: (props: { pageNumber: number }) => {
-    lastPageProps = { pageNumber: props.pageNumber };
+    lastPagePropsList.push({ pageNumber: props.pageNumber });
     return <div data-testid="stub-page" data-page={props.pageNumber} />;
   },
   pdfjs: { GlobalWorkerOptions: { workerSrc: '' } },
 }));
 
-describe('SourcePdfViewer', () => {
-  it('renders a Page bound to the supplied activePage', () => {
-    render(<SourcePdfViewer pdfUrl="/api/files/abc" activePage={3} totalPages={5} onPageChange={vi.fn()} />);
-    expect(screen.getByTestId('stub-page')).toHaveAttribute('data-page', '3');
-    expect(lastPageProps?.pageNumber).toBe(3);
-  });
+type FakeIO = {
+  observe: (target: Element) => void;
+  disconnect: () => void;
+};
+let lastIO: { fire: (entries: { target: Element; intersectionRatio: number }[]) => void } | null = null;
 
-  it('clicking the next-page control calls onPageChange(active + 1)', async () => {
-    const onPageChange = vi.fn();
-    render(<SourcePdfViewer pdfUrl="/api/files/abc" activePage={2} totalPages={5} onPageChange={onPageChange} />);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /next page/i }));
-    expect(onPageChange).toHaveBeenCalledWith(3);
-  });
+beforeEach(() => {
+  lastDocumentProps = null;
+  lastPagePropsList = [];
+  lastIO = null;
+  class StubIO implements FakeIO {
+    private cb: (entries: { target: Element; intersectionRatio: number }[]) => void;
+    constructor(cb: (entries: { target: Element; intersectionRatio: number }[]) => void) {
+      this.cb = cb;
+      lastIO = { fire: this.cb.bind(null) };
+      // Re-bind so callers can drive the captured cb
+      lastIO.fire = (entries) => cb(entries);
+    }
+    observe() {
+      /* noop */
+    }
+    disconnect() {
+      /* noop */
+    }
+    unobserve() {
+      /* noop */
+    }
+    takeRecords() {
+      return [];
+    }
+  }
+  vi.stubGlobal('IntersectionObserver', StubIO);
+});
 
-  it('clicking the previous-page control calls onPageChange(active - 1)', async () => {
-    const onPageChange = vi.fn();
-    render(<SourcePdfViewer pdfUrl="/api/files/abc" activePage={2} totalPages={5} onPageChange={onPageChange} />);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /previous page/i }));
-    expect(onPageChange).toHaveBeenCalledWith(1);
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
-  it('previous-page is disabled on page 1, next-page is disabled on the last page', () => {
-    const { rerender } = render(
-      <SourcePdfViewer pdfUrl="/api/files/abc" activePage={1} totalPages={5} onPageChange={vi.fn()} />,
+describe('SourcePdfViewer (continuous scroll)', () => {
+  it('renders one Page per known total page', () => {
+    render(
+      <SourcePdfViewer pdfUrl="/api/files/abc" activePage={1} totalPages={3} onPageChange={vi.fn()} />,
     );
-    expect(screen.getByRole('button', { name: /previous page/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /next page/i })).not.toBeDisabled();
-
-    rerender(<SourcePdfViewer pdfUrl="/api/files/abc" activePage={5} totalPages={5} onPageChange={vi.fn()} />);
-    expect(screen.getByRole('button', { name: /next page/i })).toBeDisabled();
+    const pages = screen.getAllByTestId('stub-page');
+    expect(pages).toHaveLength(3);
+    expect(pages.map((p) => p.getAttribute('data-page'))).toEqual(['1', '2', '3']);
   });
 
-  it('reports total pages back via onLoadSuccess from the underlying Document', () => {
-    const onTotalPagesChange = vi.fn();
+  it('reports the discovered total via onLoadSuccess + onTotalPagesChange', () => {
+    const onTotal = vi.fn();
     render(
       <SourcePdfViewer
         pdfUrl="/api/files/abc"
         activePage={1}
-        totalPages={undefined}
         onPageChange={vi.fn()}
-        onTotalPagesChange={onTotalPagesChange}
+        onTotalPagesChange={onTotal}
       />,
     );
     lastDocumentProps?.onLoadSuccess?.({ numPages: 7 });
-    expect(onTotalPagesChange).toHaveBeenCalledWith(7);
+    expect(onTotal).toHaveBeenCalledWith(7);
+  });
+
+  it('emits onPageChange when an IntersectionObserver entry takes the lead', () => {
+    const onPageChange = vi.fn();
+    render(
+      <SourcePdfViewer
+        pdfUrl="/api/files/abc"
+        activePage={1}
+        totalPages={3}
+        onPageChange={onPageChange}
+      />,
+    );
+    const targets = document.querySelectorAll('[data-pdf-page]');
+    expect(targets).toHaveLength(3);
+    lastIO?.fire([
+      { target: targets[1] as Element, intersectionRatio: 0.9 },
+      { target: targets[0] as Element, intersectionRatio: 0.1 },
+    ]);
+    expect(onPageChange).toHaveBeenLastCalledWith(2);
+  });
+
+  it('shows Page X / Y once total is known', () => {
+    render(
+      <SourcePdfViewer pdfUrl="/api/files/abc" activePage={2} totalPages={5} onPageChange={vi.fn()} />,
+    );
+    expect(screen.getByText(/page 2 \/ 5/i)).toBeInTheDocument();
   });
 });

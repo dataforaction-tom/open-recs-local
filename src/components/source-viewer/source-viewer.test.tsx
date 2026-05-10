@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SourceViewer } from './source-viewer';
 
@@ -7,6 +7,23 @@ vi.mock('react-pdf', () => ({
   Page: (props: { pageNumber: number }) => <div data-testid="stub-page" data-page={props.pageNumber} />,
   pdfjs: { GlobalWorkerOptions: { workerSrc: '' } },
 }));
+
+beforeEach(() => {
+  class StubIO {
+    constructor(_cb: unknown) {}
+    observe() {}
+    disconnect() {}
+    unobserve() {}
+    takeRecords() {
+      return [];
+    }
+  }
+  vi.stubGlobal('IntersectionObserver', StubIO);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 const fixturePages = [
   { pageNumber: 1, markdown: '# Page one', imageUrls: {} },
@@ -23,8 +40,10 @@ describe('SourceViewer', () => {
     render(<SourceViewer title="Sample Report" pages={fixturePages} pdfUrl="/api/files/T1" />);
     // Markdown side: page sections.
     expect(document.querySelectorAll('section[data-page]')).toHaveLength(2);
-    // PDF side: stubbed react-pdf Page.
-    expect(screen.getByTestId('stub-page')).toBeInTheDocument();
+    // PDF side: continuous-scroll renders one stub page per known total.
+    // SourcePdfViewer initialises totalPages from the seeded pages.length,
+    // so we expect 2 stub pages here too.
+    expect(screen.getAllByTestId('stub-page')).toHaveLength(2);
   });
 
   it('header shows the active page indicator', () => {
