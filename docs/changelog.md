@@ -6,7 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-Nothing yet — Phase 4 (UI shell) is being planned.
+Nothing yet — Phase 5 (source viewer) is being planned.
+
+## 2026-05-10 — Phase 4: App shell
+
+### Added
+
+- **App shell.** A real app shell now wraps every authenticated page: top navigation, dark mode (with no flash on load), a footer, and three route groups — `(app)` for the application, `(marketing)` for the public landing, `(auth)` reserved for sign-in flows.
+- **First-launch flow.** A three-step DecisionFlow card greets new users on the dashboard and remembers when you've dismissed it.
+- **Dashboard.** A stub dashboard surfaces recent processing jobs and recently-uploaded sources side-by-side. Real source listing and the recommendations table land in Phase 5/6.
+- **Mode-aware UI.** A `<FeatureGate>` wrapper hides hosted-only features (auth, ownership, admin) when the app is running in local mode — the same code, two surfaces.
+- **shadcn/ui primitives.** Buttons and cards are now driven by shadcn so future components have a consistent look and dark-mode contract for free.
+
+### Notes
+
+- The visible app today is shell only — page content for sources, search, and chat lands in Phases 5 and 6.
 
 ## 2026-05-10 — Phase 3: Search surfaces
 
