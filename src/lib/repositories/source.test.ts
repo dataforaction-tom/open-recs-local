@@ -4,7 +4,7 @@ import { startPostgres, type StartedPg } from '../../../tests/helpers/pg-contain
 import { applyMigrations } from '../../../tests/helpers/migrate';
 import { createDb, type Db, type DbClient } from '../db/client';
 import type { Role } from '../providers/auth/types';
-import { createSource, findSourceBySlug } from './source';
+import { createSource, createSourceFile, findSourceBySlug, findSourceFileByKey } from './source';
 import { AuthorizationError, type RepoContext } from './types';
 
 let pg: StartedPg;
@@ -93,5 +93,70 @@ describe('sourceRepo', () => {
     const sys = ctxSystem(client.db);
     const found = await findSourceBySlug(sys, 'private-3');
     expect(found?.slug).toBe('private-3');
+  });
+
+  describe('findSourceFileByKey', () => {
+    const ownerA = randomUUID();
+    const ownerB = randomUUID();
+    let publicKey: string;
+    let privateKey: string;
+
+    beforeAll(async () => {
+      const sys = ctxSystem(client.db);
+      const pub = await createSource(sys, { slug: 'sf-public', title: 'sf-public', isPrivate: false });
+      const priv = await createSource(sys, {
+        slug: 'sf-private',
+        title: 'sf-private',
+        isPrivate: true,
+        ownerUserId: ownerA,
+      });
+      publicKey = `${pub.id}/original.pdf`;
+      privateKey = `${priv.id}/original.pdf`;
+      await createSourceFile(sys, {
+        sourceId: pub.id,
+        role: 'original',
+        storageKey: publicKey,
+        mimeType: 'application/pdf',
+        bytes: 1,
+      });
+      await createSourceFile(sys, {
+        sourceId: priv.id,
+        role: 'original',
+        storageKey: privateKey,
+        mimeType: 'application/pdf',
+        bytes: 1,
+      });
+    });
+
+    it('returns the row for a public source to any viewer', async () => {
+      const anon = ctxUser(client.db, randomUUID());
+      const found = await findSourceFileByKey(anon, publicKey);
+      expect(found).not.toBeNull();
+      expect(found?.role).toBe('original');
+    });
+
+    it('returns the row for a private source to its owner', async () => {
+      const owner = ctxUser(client.db, ownerA);
+      const found = await findSourceFileByKey(owner, privateKey);
+      expect(found).not.toBeNull();
+    });
+
+    it('returns null for a private source to a different user', async () => {
+      const other = ctxUser(client.db, ownerB);
+      const found = await findSourceFileByKey(other, privateKey);
+      expect(found).toBeNull();
+    });
+
+    it('returns null when no source_files row matches the key', async () => {
+      const sys = ctxSystem(client.db);
+      const found = await findSourceFileByKey(sys, 'no-such-key.pdf');
+      expect(found).toBeNull();
+    });
+
+    it('returns the row to a system viewer regardless of privacy', async () => {
+      const sys = ctxSystem(client.db);
+      const found = await findSourceFileByKey(sys, privateKey);
+      expect(found).not.toBeNull();
+    });
   });
 });
