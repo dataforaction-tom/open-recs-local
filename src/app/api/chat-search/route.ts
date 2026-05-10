@@ -73,6 +73,11 @@ export async function POST(req: Request): Promise<Response> {
       { embedding: providers.embedding },
     );
 
+    // All DB work is done — the streaming phase below is LLM-only. Closing
+    // here prevents the per-request postgres pool from leaking under traffic.
+    await client.sql.end({ timeout: 5 }).catch(() => {});
+    client = undefined;
+
     const passages = retrieved
       .map((p) => `[source:${p.sourceSlug} page:${p.pageNumber}]\n${p.markdown}`)
       .join('\n\n');
@@ -98,10 +103,6 @@ export async function POST(req: Request): Promise<Response> {
     const message = err instanceof Error ? err.message : String(err);
     return jsonError(500, 'chat-search failed', message);
   } finally {
-    // Cannot await sql.end() before the stream starts — that would close the
-    // pool while the response is still being generated. The route owns one
-    // client per request; we leave cleanup to the GC + idle-timeout. Phase 8
-    // can revisit if connection pressure shows up.
-    void client;
+    await client?.sql.end({ timeout: 5 }).catch(() => {});
   }
 }
