@@ -6,7 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-Nothing yet — Phase 5 (source viewer) is being planned.
+Nothing yet — Phase 6 (recommendations UI) is being planned.
+
+## 2026-05-10 — Phase 5: Source viewer
+
+### Added
+
+- **Source detail page.** Visit `/sources/<slug>` to read a processed source's canonical markdown side-by-side with the original PDF. The split is resizable and remembers your preferred ratio.
+- **Signed file URLs.** Files now flow through `/api/files/<token>`, an HMAC-signed short-lived URL route. Storage paths never appear in the page; tokens last five minutes by default.
+- **Image rendering inside markdown.** Markdown image refs that point at storage keys get rewritten to signed URLs at render time so attachments and page images load correctly.
+- **PDF viewer.** Powered by react-pdf with the pdfjs worker bundled at build time. Page navigation chrome lets you step through; the active page is plumbed for scroll synchronisation in upcoming polish.
+
+### Notes
+
+- Live scroll sync between the markdown and PDF panes uses a debounced state hook but the per-pane IntersectionObserver wiring follows in Phase 6.
+- Mobile (narrow-screen) layout still presents the desktop split-pane; a stacked layout for narrow widths is Phase 10 polish.
 
 ## 2026-05-10 — Phase 4: App shell
 
