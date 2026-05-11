@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import { createDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { signFileToken } from '@/lib/files/sign';
@@ -87,7 +88,19 @@ export default async function SourceDetailPage({ params }: PageProps) {
       };
     });
 
-    return <SourceViewer title={data.source.title} pages={pages} pdfUrl={pdfUrl} />;
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <Link
+            href={`/sources/${slug}/analytics`}
+            className="text-sm text-muted-foreground underline hover:text-foreground"
+          >
+            View analytics →
+          </Link>
+        </div>
+        <SourceViewer title={data.source.title} pages={pages} pdfUrl={pdfUrl} />
+      </div>
+    );
   } finally {
     await client.sql.end({ timeout: 5 }).catch(() => {});
   }
