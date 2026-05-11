@@ -15,10 +15,11 @@ stateDiagram-v2
     Phase5 --> Phase6: source viewer merged
     Phase6 --> Phase7: recommendations UI merged
     Phase7 --> Phase8: progress updates merged
-    Phase8 --> PhaseN: hosted-mode auth
+    Phase8 --> Phase9: hosted-mode auth merged
+    Phase9 --> PhaseN: analytics
     PhaseN --> Live: 1.0 release
 
-    note right of Phase8: ← WE ARE HERE
+    note right of Phase9: ← WE ARE HERE
 ```
 
 - **Phase 0** ✅ merged (PR #1) — Next.js 16 + Postgres compose, CI green, MIT license.
@@ -30,8 +31,9 @@ stateDiagram-v2
 - **Phase 4** ✅ merged (PR #7) — shadcn/ui-based primitives, dark mode (next-themes), three route groups `(app)/(marketing)/(auth)`, mode-aware root redirect, `<FeatureGate>`, Navigation + Footer, DecisionFlow first-launch flow, dashboard stub with recent jobs + sources cards.
 - **Phase 5** ✅ merged (PR #8) — `/sources/[slug]` split-pane viewer with synced scroll via IntersectionObserver, HMAC-signed `/api/files/[token]` route + `signFileToken/verifyFileToken` helpers, image-rewrite rehype plugin, `useScrollSync` hook, `getSourceWithPagesBySlug` repo helper.
 - **Phase 6** ✅ merged (PR #9) — `/recommendations` index (TanStack Table, URL-driven filters, hybrid/keyword toggle), `/recommendations/[id]` detail with shadcn Tabs (Overview / Similar / Progress), `findRecommendationById` + `findSimilarRecommendations` + `listRecentRecommendations` repo helpers, `<FilterChips>`, `useSearchParamsState` hook.
-- **Phase 7** 🔧 in flight — progress updates: `<ProgressUpdateForm>` (RHF + Zod), `<ProgressUpdatesList>`, `<StatusBadge>` + `<StatusTransitionControl>` on the detail page, `<EditableSelectCell>` + Status column on the index table; `getLatestStatuses` SQL helper, `createProgressUpdate` + `listProgressUpdates` + `appendStatus` repos, server actions + shared Zod schemas.
-- **Phase 8** ⏳ — hosted-mode auth (Better-auth, ownership requests, admin dashboard).
+- **Phase 7** ✅ — progress updates: `<ProgressUpdateForm>` (RHF + Zod), `<ProgressUpdatesList>`, `<StatusBadge>` + `<StatusTransitionControl>` on the detail page, `<EditableSelectCell>` + Status column on the index table; `getLatestStatuses` SQL helper, `createProgressUpdate` + `listProgressUpdates` + `appendStatus` repos, server actions + shared Zod schemas.
+- **Phase 8** 🔧 in flight — hosted mode: Better-auth (email+password + magic link) wired via `BetterAuthProvider` behind the existing `AuthContext`; new `users` / `sessions` / `accounts` / `verifications` / `user_roles` schema with FKs on the existing nullable user-ref columns; `EmailProvider` interface + console-logger fake; first-signup-becomes-admin bootstrap; `/signup` / `/login` / `/magic-link` / `/forgot-password` / `/reset-password` / `/profile` pages; ownership-request flow on `/sources/[slug]` + admin queue at `/admin`; `<RoleTable>` + role-assignment.
+- **Phase 9** ⏳ — analytics (Chart.js + scheduled `analytics.refresh` job).
 
 ## Component Status
 
@@ -61,7 +63,8 @@ stateDiagram-v2
 | Recommendations index + detail | ✅ | TanStack Table, URL-driven filters, shadcn Tabs, inline-editable Status column |
 | Progress updates UI | ✅ | Form + list + status transitions on the detail page; Phase 7 |
 | NetworkViz / chat UI | ⏳ | Phase 9 (NetworkViz) / TBD (chat UI) |
-| Better-auth / hosted mode | ⏳ | Phase 8 |
+| Better-auth / hosted mode | ✅ | Phase 8 — `BetterAuthProvider`, auth pages, ownership requests, /admin |
+| Email provider | 🔧 | console-logger fake only; Resend/SMTP land in Phase 10 |
 
 ## Dependencies
 
@@ -74,7 +77,7 @@ stateDiagram-v2
 
 ## Carry-overs flagged for Phase 7+
 
-- `uuid` columns for user refs (`owner_user_id`, `set_by_user_id`, `resolved_by`, `author_user_id`) have no FKs yet — wire up when Better-auth schema lands (Phase 8).
+- ~~`uuid` columns for user refs (`owner_user_id`, `set_by_user_id`, `resolved_by`, `author_user_id`) have no FKs yet~~ — resolved in Phase 8 (FKs added with `ON DELETE SET NULL`).
 - Optional ESLint tweak: `@typescript-eslint/no-unused-vars` with `argsIgnorePattern: '^_'` to silence warnings on provider interfaces (currently 6 lint warnings, 0 errors).
 - `drizzle-kit` `customType` emits `"undefined"."typename"` in ALTER statements — hand-edit required if we retrofit an existing column.
 - `source_pages` has no generated `tsv` column. `searchSourcePages` computes `to_tsvector` inline at query time, bypassing the GIN path. If chat-search latency suffers, add a generated tsv + GIN index migration.
@@ -90,6 +93,12 @@ stateDiagram-v2
 - Mobile layout for the source viewer is desktop-first only (split-pane assumes width). Add a stacked-pane mode below `md:` in Phase 10.
 - Markdown renderer uses `prose` Tailwind classes, but `@tailwindcss/typography` isn't actually installed — those classes silently no-op. If markdown looks unstyled, install the plugin or hand-author rules.
 - ~~The recommendations table omits the current-status column~~ — resolved in Phase 7 via `getLatestStatuses` + `<EditableSelectCell>`.
+- **Email delivery is stub-only.** The `EmailProvider` ships with a console-logger fake; reset / magic-link URLs go to stdout. Phase 10 adds `ResendEmailProvider` / `SmtpEmailProvider` behind an `EMAIL_PROVIDER` env switch.
+- **OAuth providers (Google/GitHub) are not wired.** Better-auth supports them; opt in if/when there's user demand.
+- **No 2FA, no account deletion / GDPR data export, no audit log of admin actions.** Phase 10 polish or 1.x.
+- **Browser-level Playwright E2E for the auth flow is deferred to Phase 10.** Phase 8 ships an integration test (`tests/hosted-mode.smoke.test.ts`) that composes the same pieces a browser test would exercise.
+- **Email rate limiting is absent.** No protection against signup floods. Phase 10 ops hardening.
+- **Edit / delete of progress updates** is now possible (real user IDs land); UI not built yet — Phase 9 polish or fast-follow.
 - Edit / delete of existing progress updates is deferred to Phase 8 (needs role-aware authz from Better-auth). Local mode workaround: post a corrective second update.
 - File-attachment uploads for evidence references are deferred to Phase 10 polish; the field is free-text URL/path for now.
 - `?status=` filter on the recommendations index is a one-line follow-up once any future need arises; deliberately not shipped in Phase 7.

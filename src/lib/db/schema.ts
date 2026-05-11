@@ -9,6 +9,7 @@ import {
   boolean,
   vector,
   index,
+  uniqueIndex,
   customType,
   primaryKey,
 } from 'drizzle-orm/pg-core';
@@ -26,6 +27,90 @@ const tsvector = customType<{ data: string }>({
   },
 });
 
+/**
+ * Better-auth tables. Shape mirrors Better-auth 1.x's expected fields; we
+ * declare them in our Drizzle schema so the migration story stays a single
+ * `pnpm db:migrate` rather than mixing CLIs. Better-auth's drizzle adapter is
+ * configured with `usePlural: true` so it looks up `users` / `sessions` /
+ * `accounts` / `verifications` instead of the singular defaults.
+ *
+ * IDs are `uuid` (Postgres-typed) so the existing `owner_user_id` /
+ * `set_by_user_id` / `author_user_id` / `resolved_by` columns can FK in
+ * directly. Better-auth's `generateId` is overridden in the auth config to
+ * emit `crypto.randomUUID()` strings.
+ */
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  name: text('name'),
+  image: text('image'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull().unique(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const accounts = pgTable('accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  providerId: text('provider_id').notNull(),
+  accountId: text('account_id').notNull(),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+  scope: text('scope'),
+  password: text('password'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const verifications = pgTable('verifications', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * App-layer role assignment. Kept separate from Better-auth so the role concept
+ * stays portable across auth libs and so role changes don't trigger a session
+ * rebuild. Composite PK on (user_id, role) — a user can hold multiple roles.
+ */
+export const ROLES = ['admin', 'editor', 'viewer'] as const;
+export type Role = (typeof ROLES)[number];
+
+export const userRoles = pgTable(
+  'user_roles',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role', { enum: ROLES }).notNull(),
+    grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.role] }),
+  }),
+);
+
 /** Status values for a source through the parse → extract → embed pipeline. */
 export const SOURCE_STATUS = ['pending', 'parsing', 'extracting', 'embedding', 'ready', 'failed'] as const;
 export type SourceStatus = (typeof SOURCE_STATUS)[number];
@@ -40,7 +125,7 @@ export const sources = pgTable(
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
     isPrivate: boolean('is_private').notNull().default(false),
     status: text('status', { enum: SOURCE_STATUS }).notNull().default('pending'),
-    ownerUserId: uuid('owner_user_id'),
+    ownerUserId: uuid('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
     tsv: tsvector('tsv').generatedAlwaysAs(
       sql`to_tsvector('english', coalesce(title, '') || ' ' || coalesce(canonical_markdown, ''))`,
     ),
@@ -123,7 +208,7 @@ export const recommendationStatuses = pgTable(
       .references(() => recommendations.id, { onDelete: 'cascade' }),
     status: text('status', { enum: REC_STATUS }).notNull(),
     note: text('note'),
-    setByUserId: uuid('set_by_user_id'),
+    setByUserId: uuid('set_by_user_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -142,7 +227,7 @@ export const progressUpdates = pgTable(
     evidenceType: text('evidence_type'),
     evidenceUrl: text('evidence_url'),
     userProgressRating: text('user_progress_rating'),
-    authorUserId: uuid('author_user_id'),
+    authorUserId: uuid('author_user_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -190,19 +275,31 @@ export const progressRatings = pgTable('progress_ratings', {
 export const OWNERSHIP_REQUEST_STATUS = ['pending', 'approved', 'rejected', 'withdrawn'] as const;
 export type OwnershipRequestStatus = (typeof OWNERSHIP_REQUEST_STATUS)[number];
 
-export const ownershipRequests = pgTable('ownership_requests', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  sourceId: uuid('source_id')
-    .notNull()
-    .references(() => sources.id, { onDelete: 'cascade' }),
-  requesterEmail: text('requester_email').notNull(),
-  requesterName: text('requester_name'),
-  note: text('note'),
-  status: text('status', { enum: OWNERSHIP_REQUEST_STATUS }).notNull().default('pending'),
-  resolvedBy: uuid('resolved_by'),
-  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const ownershipRequests = pgTable(
+  'ownership_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    requesterEmail: text('requester_email').notNull(),
+    requesterName: text('requester_name'),
+    note: text('note'),
+    status: text('status', { enum: OWNERSHIP_REQUEST_STATUS }).notNull().default('pending'),
+    resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Partial unique index: one pending request per (source, requester) pair.
+    // Approved / rejected / withdrawn rows are exempt so a requester can
+    // re-request after a rejection. Backs the read-then-write check in the
+    // repo with an atomic database constraint that survives concurrency.
+    onePendingPerRequester: uniqueIndex('ownership_requests_one_pending_per_requester_idx')
+      .on(t.sourceId, t.requesterEmail)
+      .where(sql`status = 'pending'`),
+  }),
+);
 
 export const jobResults = pgTable('job_results', {
   id: uuid('id').primaryKey().defaultRandom(),

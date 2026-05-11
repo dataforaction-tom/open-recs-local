@@ -27,7 +27,7 @@ describe('createProviders', () => {
     ).toThrow(/llm=anthropic.*not wired yet/i);
   });
 
-  it('throws with a clear message in hosted mode until better-auth lands', () => {
+  it('returns a BetterAuthProvider in hosted mode', () => {
     const hosted = envSchema.parse({
       APP_MODE: 'hosted',
       DATABASE_URL: 'postgres://x/y',
@@ -35,6 +35,11 @@ describe('createProviders', () => {
       BETTER_AUTH_URL: 'http://localhost:3000',
       FILE_TOKEN_SECRET: 'x'.repeat(32),
     });
-    expect(() => createProviders(hosted)).toThrow(/hosted auth is not wired yet/i);
+    // Constructing the provider opens a postgres-js client lazily; we don't
+    // need the connection to actually open to verify the factory branch
+    // returns *something* implementing the AuthProvider shape.
+    const providers = createProviders(hosted);
+    expect(providers.auth).toBeDefined();
+    expect(typeof providers.auth.getContext).toBe('function');
   });
 });

@@ -14,6 +14,7 @@ import {
 import { NotFoundError } from './types';
 import { sourcePages } from '../db/schema';
 import { AuthorizationError, type RepoContext } from './types';
+import { seedUser } from '../../../tests/helpers/seed-user';
 
 let pg: StartedPg;
 let client: DbClient;
@@ -66,7 +67,7 @@ describe('sourceRepo', () => {
   });
 
   it('findSourceBySlug returns null for a private source when ctx is a different user', async () => {
-    const ownerA = randomUUID();
+    const ownerA = await seedUser(client.db);
     await createSource(ctxSystem(client.db), {
       slug: 'private-1',
       title: 'Private One',
@@ -79,7 +80,7 @@ describe('sourceRepo', () => {
   });
 
   it('findSourceBySlug returns the row when ctx is the owner', async () => {
-    const ownerB = randomUUID();
+    const ownerB = await seedUser(client.db);
     await createSource(ctxSystem(client.db), {
       slug: 'private-2',
       title: 'Private Two',
@@ -96,7 +97,7 @@ describe('sourceRepo', () => {
       slug: 'private-3',
       title: 'Private Three',
       isPrivate: true,
-      ownerUserId: randomUUID(),
+      ownerUserId: await seedUser(client.db),
     });
     const sys = ctxSystem(client.db);
     const found = await findSourceBySlug(sys, 'private-3');
@@ -104,13 +105,15 @@ describe('sourceRepo', () => {
   });
 
   describe('findSourceFileByKey', () => {
-    const ownerA = randomUUID();
-    const ownerB = randomUUID();
+    let ownerA: string;
+    let ownerB: string;
     let publicKey: string;
     let privateKey: string;
 
     beforeAll(async () => {
       const sys = ctxSystem(client.db);
+      ownerA = await seedUser(client.db);
+      ownerB = await seedUser(client.db);
       const pub = await createSource(sys, { slug: 'sf-public', title: 'sf-public', isPrivate: false });
       const priv = await createSource(sys, {
         slug: 'sf-private',
@@ -169,7 +172,11 @@ describe('sourceRepo', () => {
   });
 
   describe('getSourceWithPagesBySlug', () => {
-    const owner = randomUUID();
+    let owner: string;
+
+    beforeAll(async () => {
+      owner = await seedUser(client.db);
+    });
 
     it('returns source + pages + originalPdfKey for a public source', async () => {
       const sys = ctxSystem(client.db);

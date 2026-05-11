@@ -11,13 +11,16 @@ import {
   sources,
 } from '../db/schema';
 import { createProgressUpdate, listProgressUpdates } from './progress-update';
+import { seedUser } from '../../../tests/helpers/seed-user';
 import type { RepoContext } from './types';
 
 let pg: StartedPg;
 let client: DbClient;
 
 function ctxSystem(db: Db): RepoContext {
-  return { db, auth: { user: { id: randomUUID() }, roles: ['admin'], isSystem: true } };
+  // Mirror the local AuthProvider's non-uuid user.id so FK-enforced columns
+  // store NULL via the UUID_RE guard in the repo layer.
+  return { db, auth: { user: { id: 'system' }, roles: ['admin'], isSystem: true } };
 }
 function ctxUser(db: Db, userId: string): RepoContext {
   return { db, auth: { user: { id: userId }, roles: ['viewer'], isSystem: false } };
@@ -121,7 +124,7 @@ describe('createProgressUpdate', () => {
   });
 
   it('persists authorUserId from a uuid-bearing context', async () => {
-    const ownerId = randomUUID();
+    const ownerId = await seedUser(client.db);
     const { recId } = await seedRec({
       sourceSlug: 'pu-author-src',
       recSlug: 'pu-author-rec',
@@ -136,8 +139,8 @@ describe('createProgressUpdate', () => {
   });
 
   it('returns null when the rec is invisible to the viewer', async () => {
-    const ownerId = randomUUID();
-    const otherId = randomUUID();
+    const ownerId = await seedUser(client.db);
+    const otherId = await seedUser(client.db);
     const { recId } = await seedRec({
       sourceSlug: 'pu-private-src',
       recSlug: 'pu-private-rec',
@@ -194,8 +197,8 @@ describe('listProgressUpdates', () => {
   });
 
   it('returns an empty array for an invisible rec', async () => {
-    const ownerId = randomUUID();
-    const otherId = randomUUID();
+    const ownerId = await seedUser(client.db);
+    const otherId = await seedUser(client.db);
     const { recId } = await seedRec({
       sourceSlug: 'pu-list-private-src',
       recSlug: 'pu-list-private-rec',

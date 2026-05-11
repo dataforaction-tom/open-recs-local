@@ -4,7 +4,12 @@ import type { LlmProvider } from './llm/types';
 import type { EmbeddingProvider } from './embedding/types';
 import type { OcrProvider } from './ocr/types';
 import type { StorageProvider } from './storage/types';
+import type { EmailProvider } from './email/types';
 import { localAuth } from './auth/local';
+import { createBetterAuthProvider } from './auth/better-auth';
+import { createAuth } from '../auth/config';
+import { createDb } from '../db/client';
+import { createConsoleEmail } from './email/console';
 import { createFakeLlm } from './llm/fake';
 import { createOpenAICompatLlm } from './llm/openai-compat';
 import { createFakeEmbedding } from './embedding/fake';
@@ -20,15 +25,32 @@ export type Providers = {
   embedding: EmbeddingProvider;
   ocr: OcrProvider;
   storage: StorageProvider;
+  email: EmailProvider;
 };
 
 function notWired(kind: string, value: string): never {
   throw new Error(`provider ${kind}=${value} is not wired yet`);
 }
 
+// Lazily-constructed hosted-mode singletons. Auth + the underlying DB client
+// have side-effects (cookie reads, pool connections) so we share them across
+// requests within a process. Tests construct their own pair via
+// `createBetterAuthProvider(createAuth({...}), client.db)`.
+let hostedAuthSingleton: AuthProvider | null = null;
+
 function selectAuth(env: Env): AuthProvider {
   if (env.APP_MODE === 'local') return localAuth;
-  throw new Error('hosted auth is not wired yet');
+  if (!hostedAuthSingleton) {
+    const client = createDb(env.DATABASE_URL);
+    const auth = createAuth({
+      db: client.db,
+      email: createConsoleEmail(),
+      secret: env.BETTER_AUTH_SECRET,
+      baseURL: env.BETTER_AUTH_URL,
+    });
+    hostedAuthSingleton = createBetterAuthProvider(auth, client.db);
+  }
+  return hostedAuthSingleton;
 }
 
 function selectLlm(env: Env): LlmProvider {
@@ -116,6 +138,12 @@ function selectStorage(env: Env): StorageProvider {
   }
 }
 
+function selectEmail(_env: Env): EmailProvider {
+  // Phase 8 ships the console fake only. Phase 10 adds an EMAIL_PROVIDER
+  // env switch + ResendEmailProvider / SmtpEmailProvider.
+  return createConsoleEmail();
+}
+
 export function createProviders(env: Env): Providers {
   return {
     auth: selectAuth(env),
@@ -123,5 +151,6 @@ export function createProviders(env: Env): Providers {
     embedding: selectEmbedding(env),
     ocr: selectOcr(env),
     storage: selectStorage(env),
+    email: selectEmail(env),
   };
 }

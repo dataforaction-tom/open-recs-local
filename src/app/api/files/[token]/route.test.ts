@@ -6,6 +6,7 @@ import { startPostgres, type StartedPg } from '../../../../../tests/helpers/pg-c
 import { applyMigrations } from '../../../../../tests/helpers/migrate';
 import { createDb, type DbClient } from '@/lib/db/client';
 import { sourceFiles, sources } from '@/lib/db/schema';
+import { seedUser } from '../../../../../tests/helpers/seed-user';
 import { signFileToken } from '@/lib/files/sign';
 import { loadEnv } from '@/lib/env';
 import { createProviders } from '@/lib/providers';
@@ -29,12 +30,13 @@ let publicSourceId: string;
 let publicPdfKey: string;
 let privateSourceId: string;
 let privatePdfKey: string;
-const otherOwner = '99999999-9999-9999-9999-999999999999';
+let otherOwner: string;
 
 beforeAll(async () => {
   pg = await startPostgres();
   await applyMigrations(pg.url).then(({ sql }) => sql.end());
   client = createDb(pg.url);
+  otherOwner = await seedUser(client.db);
 
   for (const key of envKeys) originalEnv[key] = process.env[key];
   process.env.APP_MODE = 'local';

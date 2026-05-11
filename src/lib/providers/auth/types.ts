@@ -1,4 +1,5 @@
-export type Role = 'admin' | 'editor' | 'viewer';
+import type { Role } from '../../db/schema';
+export type { Role };
 
 export type AuthUser = {
   id: string;
