@@ -82,21 +82,44 @@ FILE_TOKEN_SECRET=<32+ random chars>
 The first user to sign up becomes the admin (one-shot bootstrap). Subsequent
 signups are `viewer` by default — admins can promote at `/admin`.
 
-Phase 8 ships with a stub email backend that writes reset and magic-link
-URLs to stdout — useful for self-hosted instances during evaluation.
-Real email backends (Resend, SMTP) land in Phase 10. Until then, expect
-to copy the URLs out of your container logs after a "forgot password" /
-magic-link request.
+For real email delivery (production deployments), also set:
+
+```bash
+EMAIL_PROVIDER=resend
+RESEND_API_KEY=re_…
+RESEND_FROM=noreply@your.domain
+```
+
+Without those, password-reset and magic-link URLs go to stdout — fine for
+evaluation, not for a live deployment.
+
+The first user to sign up becomes the admin (one-shot bootstrap). Subsequent
+signups are `viewer` by default — admins can promote at `/admin`.
+
+For a step-by-step walkthrough including Ollama / Docling setup on Mac mini
+and Linux, see [`docs/running-locally.md`](docs/running-locally.md).
+
+## Screenshots
+
+| Dashboard | Source viewer | Recommendations |
+|---|---|---|
+| ![Dashboard](docs/screenshots/dashboard.png) | ![Source viewer](docs/screenshots/source-viewer.png) | ![Recommendations](docs/screenshots/recommendations.png) |
+
+(If these don't render, the project is mid-screenshot-capture before the 1.0 cut — paths are reserved.)
 
 ## Project status
 
-Early days. The foundation is in place, the user-facing features are not yet.
+Approaching 1.0. Every phase of the master plan has shipped through analytics; Phase 10 is the final polish + release cycle.
 
-- **Phase 0** — Next.js + Tailwind + Vitest + env schema + CI + Docker — done
-- **Phase 1** — Drizzle schema + migrations + provider fakes + repository layer + seed — done
-- **Phase 2+** — real providers, parse/extract/embed pipeline, search, UI — in progress
+- **Phases 0–1** — Next.js + Tailwind + Vitest + env schema + CI + Docker; Drizzle schema + migrations + provider fakes + repository layer + seed.
+- **Phases 2–3** — pg-boss queues + worker sidecar + parse/extract/embed pipeline; real LLM/OCR/embedding adapters; hybrid + keyword + chat search.
+- **Phases 4–6** — app shell, dark mode, mode-aware feature gates; split-pane source viewer with signed URLs; recommendations index + detail with inline status edit.
+- **Phase 7** — progress updates: form, list, status transitions, EditableSelectCell.
+- **Phase 8** — hosted mode: Better-auth (email+password + magic link), ownership requests, admin dashboard, first-signup-becomes-admin.
+- **Phase 9** — analytics: Chart.js dashboards at `/analytics` and `/sources/[slug]/analytics`, nightly `analytics.refresh` cron, on-demand miss-backfill.
+- **Phase 10** — polish + docs + 1.0 release (in progress).
 
-See [`docs/plans/2026-04-19-open-recs-local-design.md`](docs/plans/2026-04-19-open-recs-local-design.md) for the full design and [`PLAN.md`](PLAN.md) for the phase roadmap.
+See [`docs/plans/2026-04-19-open-recs-local-design.md`](docs/plans/2026-04-19-open-recs-local-design.md) for the full design, [`PLAN.md`](PLAN.md) for the phase roadmap, and [`docs/running-locally.md`](docs/running-locally.md) for the step-by-step setup guide.
 
 ## Documentation
 
