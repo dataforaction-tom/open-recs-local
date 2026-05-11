@@ -26,6 +26,9 @@ HANDOFF.md
 .DS_Store
 *.pem
 
+# local fs storage uploads (STORAGE_FS_PATH default)
+/.data/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

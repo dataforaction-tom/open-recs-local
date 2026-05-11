@@ -21,11 +21,20 @@ describe('fake OCR provider', () => {
     expect(out.metadata.filename).toBe('sample-report.pdf');
   });
 
-  it('throws with a clear error when no fixture matches', async () => {
+  it('falls back to a synthetic two-page doc when no fixture matches', async () => {
+    // Ad-hoc dev uploads need the pipeline to complete even without a
+    // matching fixture. The fallback echoes the filename and emits a
+    // recommendation-shaped paragraph so downstream extraction has
+    // something concrete to find.
     const ocr = createFakeOcr();
-    await expect(
-      ocr.parseDocument({ filename: 'whatever.pdf', bytes: Buffer.from('') }),
-    ).rejects.toThrow('fake OCR: no fixture found for "whatever.pdf"');
+    const out = await ocr.parseDocument({
+      filename: 'whatever.pdf',
+      bytes: Buffer.from(''),
+    });
+    expect(out.metadata.filename).toBe('whatever.pdf');
+    expect(out.pages.length).toBeGreaterThanOrEqual(2);
+    expect(out.markdown).toContain('whatever.pdf');
+    expect(out.markdown).toMatch(/recommendation/i);
   });
 
   it('reads from an explicit fixturesDir override', async () => {

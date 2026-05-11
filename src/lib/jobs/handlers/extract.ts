@@ -18,10 +18,29 @@ import { ExtractionSchema, type RecommendationInput } from '@/lib/services/extra
  */
 const MAX_PROMPT_MARKDOWN = 100_000;
 
-const SYSTEM_PROMPT =
-  'You are an assistant extracting structured recommendations from policy / report documents. ' +
-  'Return a JSON object matching the provided schema exactly. Do not invent recommendations not ' +
-  'grounded in the document.';
+// The system prompt includes a literal JSON skeleton because Llama 3.x
+// (and similar small open models) often return a bare `[...]` array when
+// asked for "recommendations", rather than an object wrapping the array.
+// The skeleton anchors the structure; the openai-compat adapter adds its
+// own "respond with raw JSON only" instruction on top.
+const SYSTEM_PROMPT = [
+  'You are an assistant extracting structured recommendations from policy / report documents.',
+  'Return a JSON object with a top-level "recommendations" array. Do not return a bare array.',
+  'Do not invent recommendations not grounded in the document.',
+  '',
+  'The exact JSON shape is:',
+  '{',
+  '  "recommendations": [',
+  '    {',
+  '      "title": "Short title (5+ chars)",',
+  '      "full_text": "Full recommendation text (20+ chars)",',
+  '      "thematic_area_slug": "optional taxonomy slug",',
+  '      "page_start": null,',
+  '      "page_end": null',
+  '    }',
+  '  ]',
+  '}',
+].join('\n');
 
 function buildUserPrompt(markdown: string): string {
   const truncated =

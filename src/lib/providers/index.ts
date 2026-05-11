@@ -19,6 +19,7 @@ import { createFakeOcr } from './ocr/fake';
 import { createDoclingOcr } from './ocr/docling';
 import { createMistralOcr } from './ocr/mistral';
 import { createFakeStorage } from './storage/fake';
+import { createFsStorage } from './storage/fs';
 
 export type Providers = {
   auth: AuthProvider;
@@ -134,6 +135,14 @@ function selectStorage(env: Env): StorageProvider {
     case 'fake':
       if (!fakeStorageSingleton) fakeStorageSingleton = createFakeStorage();
       return fakeStorageSingleton;
+    case 'fs': {
+      // Env schema's superRefine guarantees this is set when provider===fs,
+      // but narrow explicitly so the adapter's config stays required-only.
+      if (!env.STORAGE_FS_PATH) {
+        throw new Error('STORAGE_PROVIDER=fs requires STORAGE_FS_PATH');
+      }
+      return createFsStorage({ basePath: env.STORAGE_FS_PATH });
+    }
     default:
       return notWired('storage', env.STORAGE_PROVIDER);
   }
