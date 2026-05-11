@@ -9,7 +9,7 @@ import { createQueue, type Queue } from '@/lib/jobs/queue';
 import { emitJobEvent, subscribeJobEvents } from '@/lib/jobs/events';
 import { createProviders, type Providers } from '@/lib/providers';
 import type { JobContext, JobEvent } from '@/lib/jobs/context';
-import { recommendations, sources } from '@/lib/db/schema';
+import { recommendations, sourcePages, sources } from '@/lib/db/schema';
 import { createFakeEmbedding } from '@/lib/providers/embedding/fake';
 import type { EmbeddingProvider } from '@/lib/providers/embedding/types';
 import { embedHandler } from './embed';
@@ -52,6 +52,23 @@ async function seedSource(): Promise<{ sourceId: string }> {
     .returning({ id: sources.id });
   if (!srow) throw new Error('seed: no source row');
   return { sourceId: srow.id };
+}
+
+async function seedPages(sourceId: string, n: number): Promise<string[]> {
+  const ids: string[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const [row] = await dbClient.db
+      .insert(sourcePages)
+      .values({
+        sourceId,
+        pageNumber: i + 1,
+        markdown: `Page ${i + 1} markdown content — meaningful prose about topic ${i}.`,
+      })
+      .returning({ id: sourcePages.id });
+    if (!row) throw new Error('seed: no page row');
+    ids.push(row.id);
+  }
+  return ids;
 }
 
 async function seedRecs(sourceId: string, n: number): Promise<string[]> {
@@ -105,9 +122,10 @@ describe('source.embed handler', () => {
     await pg?.container.stop();
   });
 
-  it('happy path: embeds all recs to 768-dim vectors, source.status=ready, phase=ready event', async () => {
+  it('happy path: embeds all recs AND source pages to 768-dim vectors, source.status=ready, phase=ready event', async () => {
     const { sourceId } = await seedSource();
     await seedRecs(sourceId, 3);
+    await seedPages(sourceId, 2);
 
     const events: JobEvent[] = [];
     const subDb = createDb(pg.url);
@@ -124,12 +142,21 @@ describe('source.embed handler', () => {
 
     // Pull embeddings via raw SQL: we want array_length to assert the
     // on-disk vector dim, not just that `embedding IS NOT NULL`.
-    const rows = await dbClient.sql<
+    const recRows = await dbClient.sql<
       { id: string; dim: number }[]
     >`select id, array_length(embedding::real[], 1) as dim
       from recommendations where source_id = ${sourceId}`;
-    expect(rows.length).toBe(3);
-    for (const r of rows) {
+    expect(recRows.length).toBe(3);
+    for (const r of recRows) {
+      expect(r.dim).toBe(768);
+    }
+
+    const pageRows = await dbClient.sql<
+      { id: string; dim: number }[]
+    >`select id, array_length(embedding::real[], 1) as dim
+      from source_pages where source_id = ${sourceId}`;
+    expect(pageRows.length).toBe(2);
+    for (const r of pageRows) {
       expect(r.dim).toBe(768);
     }
 
@@ -201,6 +228,53 @@ describe('source.embed handler', () => {
       .where(and(eq(recommendations.sourceId, sourceId), isNotNull(recommendations.embedding)));
     expect(allForSource).toHaveLength(4);
     expect(embeddedForSource).toHaveLength(4);
+  }, 60_000);
+
+  it('source_pages: re-running on a source with embedded pages skips them (idempotent)', async () => {
+    const { sourceId } = await seedSource();
+    await seedPages(sourceId, 4);
+
+    const spy1 = spyEmbedding(createFakeEmbedding());
+    await embedHandler(ctxWithProviders({ ...baseProviders, embedding: spy1.provider }), {
+      sourceId,
+    });
+    expect(spy1.calls.flat().length).toBe(4);
+
+    const spy2 = spyEmbedding(createFakeEmbedding());
+    await embedHandler(ctxWithProviders({ ...baseProviders, embedding: spy2.provider }), {
+      sourceId,
+    });
+    expect(spy2.calls).toHaveLength(0);
+
+    const embedded = await dbClient.db
+      .select({ id: sourcePages.id })
+      .from(sourcePages)
+      .where(and(eq(sourcePages.sourceId, sourceId), isNotNull(sourcePages.embedding)));
+    expect(embedded).toHaveLength(4);
+  }, 60_000);
+
+  it('source_pages: partial-resume only re-embeds pages with NULL embedding', async () => {
+    const { sourceId } = await seedSource();
+    const pageIds = await seedPages(sourceId, 3);
+
+    // Pre-embed page #1 with a 768-dim zero vector to simulate a partial
+    // previous run.
+    const zeroVec = `[${new Array(768).fill(0).join(',')}]`;
+    const firstPageId = pageIds[0];
+    if (!firstPageId) throw new Error('seed: no page id');
+    await dbClient.sql`update source_pages set embedding = ${zeroVec}::vector where id = ${firstPageId}`;
+
+    const spy = spyEmbedding(createFakeEmbedding());
+    await embedHandler(ctxWithProviders({ ...baseProviders, embedding: spy.provider }), {
+      sourceId,
+    });
+    expect(spy.calls.flat().length).toBe(2);
+
+    const embedded = await dbClient.db
+      .select({ id: sourcePages.id })
+      .from(sourcePages)
+      .where(and(eq(sourcePages.sourceId, sourceId), isNotNull(sourcePages.embedding)));
+    expect(embedded).toHaveLength(3);
   }, 60_000);
 
   it('batching: 70 recs produce 3 provider calls (32 + 32 + 6)', async () => {

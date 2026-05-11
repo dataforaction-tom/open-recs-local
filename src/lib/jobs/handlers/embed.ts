@@ -1,7 +1,13 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import type { JobContext } from '../context';
 import type { QueuePayloads } from '../types';
-import { EMBEDDING_DIM, recommendations, sources } from '@/lib/db/schema';
+import {
+  EMBEDDING_DIM,
+  recommendations,
+  sourcePages,
+  sources,
+} from '@/lib/db/schema';
+import type { EmbeddingProvider } from '@/lib/providers/embedding/types';
 
 /**
  * Batch size for embedding calls. 32 is small enough to keep memory bounded
@@ -14,33 +20,29 @@ const BATCH_SIZE = 32;
 /**
  * `source.embed` handler — terminal stage of the pipeline.
  *
- * Pipeline step 3: load every recommendation for the source that is missing
- * an embedding, hand batches of {@link BATCH_SIZE} texts to the configured
- * embedding provider, and persist the returned vectors back onto their row.
- * Once every row has an embedding, flip `sources.status` to `ready` and emit
- * the terminal `phase: 'ready'` event.
+ * Pipeline step 3: embed every still-NULL row in `recommendations` AND
+ * `source_pages` for the source, then flip `sources.status` to `ready` and
+ * emit the terminal `phase: 'ready'` event.
+ *
+ * Two tables, one handler — recommendations power the recs index search
+ * and `/recommendations/[id]` similarity rail; source_pages power the
+ * `/chat` retrieval layer (`searchSourcePages` requires `embedding IS NOT
+ * NULL`). If we only embedded recs the chat surface would always answer
+ * "no passages retrieved", which is exactly the bug this commit fixes.
  *
  * Idempotency
  * -----------
- * On pg-boss retry the `embedding IS NULL` filter naturally scopes work to
- * rows that haven't been embedded yet. A partial previous run doesn't need
- * any cleanup — the retry just picks up the remaining NULL rows. No outer
- * transaction: each batch's UPDATEs are atomic on their own, and the final
- * `sources.status='ready'` flip is a separate statement after the last
- * batch. If anything fails mid-pipeline, the already-embedded rows stay
- * embedded and the retry finishes the job.
+ * On pg-boss retry the `embedding IS NULL` filter on each table naturally
+ * scopes work to rows that haven't been embedded yet. A partial previous
+ * run doesn't need cleanup — the retry just picks up the remaining NULL
+ * rows. No outer transaction: each batch's UPDATEs are atomic on their own
+ * and the final `sources.status='ready'` flip is a separate statement.
  *
  * Dim validation
  * --------------
  * We reject vectors whose length doesn't match {@link EMBEDDING_DIM} before
  * writing. Catches a provider / model swap that would otherwise surface as
  * a pgvector "expected N dimensions" error deep in the UPDATE.
- *
- * Progress
- * --------
- * After each batch we emit a `progress` event with cumulative percent,
- * capped at 99 so the terminal `phase: 'ready'` emit is the only thing the
- * UI sees flip the source to done.
  */
 export async function embedHandler(
   ctx: JobContext,
@@ -50,10 +52,11 @@ export async function embedHandler(
   try {
     await ctx.emit(sourceId, { type: 'phase', phase: 'embedding' });
 
-    // Pull everything that still needs embedding. For realistic source
-    // sizes (tens to low hundreds of recs) a single select is fine; if we
-    // ever chew through thousands we can paginate.
-    const pending = await ctx.db
+    // Pull every row that still needs embedding from both tables. For
+    // realistic source sizes (tens to low hundreds of recs + pages) a
+    // single pair of selects is fine; if we ever chew through thousands
+    // we can paginate.
+    const pendingRecs = await ctx.db
       .select({
         id: recommendations.id,
         title: recommendations.title,
@@ -62,47 +65,18 @@ export async function embedHandler(
       .from(recommendations)
       .where(and(eq(recommendations.sourceId, sourceId), isNull(recommendations.embedding)));
 
-    const total = pending.length;
+    const pendingPages = await ctx.db
+      .select({
+        id: sourcePages.id,
+        markdown: sourcePages.markdown,
+      })
+      .from(sourcePages)
+      .where(and(eq(sourcePages.sourceId, sourceId), isNull(sourcePages.embedding)));
+
+    const total = pendingRecs.length + pendingPages.length;
     let done = 0;
 
-    for (let start = 0; start < total; start += BATCH_SIZE) {
-      const batch = pending.slice(start, start + BATCH_SIZE);
-      const texts = batch.map((r) => `${r.title}\n\n${r.body}`);
-
-      const vectors = await ctx.providers.embedding.embed(texts);
-
-      if (vectors.length !== batch.length) {
-        throw new Error(
-          `embed: provider returned ${vectors.length} vectors for ${batch.length} inputs`,
-        );
-      }
-      for (const v of vectors) {
-        if (v.length !== EMBEDDING_DIM) {
-          throw new Error(
-            `embed: expected ${EMBEDDING_DIM}-dim vectors, got ${v.length} from provider`,
-          );
-        }
-      }
-
-      // Write each vector back onto its row. Per-row UPDATE keeps the
-      // mapping trivial; drizzle's vector helper serialises number[] as
-      // JSON which pgvector parses as a literal. Could be collapsed into
-      // a single UPDATE ... FROM (VALUES ...) if this becomes a bottleneck.
-      const modelTag = ctx.providers.embedding.model;
-      for (let i = 0; i < batch.length; i += 1) {
-        const recRow = batch[i]!;
-        const vector = vectors[i]!;
-        await ctx.db
-          .update(recommendations)
-          .set({
-            embedding: vector,
-            embeddingModel: modelTag,
-            updatedAt: new Date(),
-          })
-          .where(eq(recommendations.id, recRow.id));
-      }
-
-      done += batch.length;
+    const emitProgress = async (): Promise<void> => {
       // Cap progress at 99 — phase:'ready' below is the signal for 100%.
       const percent = Math.min(99, Math.round((done / Math.max(total, 1)) * 100));
       if (percent >= 1) {
@@ -112,6 +86,50 @@ export async function embedHandler(
           message: `${done}/${total} embedded`,
         });
       }
+    };
+
+    // -- recommendations -----------------------------------------------------
+    for (let start = 0; start < pendingRecs.length; start += BATCH_SIZE) {
+      const batch = pendingRecs.slice(start, start + BATCH_SIZE);
+      const texts = batch.map((r) => `${r.title}\n\n${r.body}`);
+      const vectors = await embedAndValidate(ctx.providers.embedding, texts);
+
+      const modelTag = ctx.providers.embedding.model;
+      for (let i = 0; i < batch.length; i += 1) {
+        const row = batch[i]!;
+        const vector = vectors[i]!;
+        await ctx.db
+          .update(recommendations)
+          .set({
+            embedding: vector,
+            embeddingModel: modelTag,
+            updatedAt: new Date(),
+          })
+          .where(eq(recommendations.id, row.id));
+      }
+
+      done += batch.length;
+      await emitProgress();
+    }
+
+    // -- source pages --------------------------------------------------------
+    for (let start = 0; start < pendingPages.length; start += BATCH_SIZE) {
+      const batch = pendingPages.slice(start, start + BATCH_SIZE);
+      const texts = batch.map((p) => p.markdown);
+      const vectors = await embedAndValidate(ctx.providers.embedding, texts);
+
+      const modelTag = ctx.providers.embedding.model;
+      for (let i = 0; i < batch.length; i += 1) {
+        const row = batch[i]!;
+        const vector = vectors[i]!;
+        await ctx.db
+          .update(sourcePages)
+          .set({ embedding: vector, embeddingModel: modelTag })
+          .where(eq(sourcePages.id, row.id));
+      }
+
+      done += batch.length;
+      await emitProgress();
     }
 
     await ctx.db
@@ -137,4 +155,24 @@ export async function embedHandler(
     }
     throw err;
   }
+}
+
+async function embedAndValidate(
+  provider: EmbeddingProvider,
+  texts: string[],
+): Promise<number[][]> {
+  const vectors = await provider.embed(texts);
+  if (vectors.length !== texts.length) {
+    throw new Error(
+      `embed: provider returned ${vectors.length} vectors for ${texts.length} inputs`,
+    );
+  }
+  for (const v of vectors) {
+    if (v.length !== EMBEDDING_DIM) {
+      throw new Error(
+        `embed: expected ${EMBEDDING_DIM}-dim vectors, got ${v.length} from provider`,
+      );
+    }
+  }
+  return vectors;
 }
