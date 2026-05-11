@@ -1,7 +1,7 @@
 # Plan
 
-> Last updated: 2026-05-11
-> Status: Phase 9 complete — Phase 10 (polish + docs + 1.0 release) up next
+> Last updated: 2026-05-11 (evening)
+> Status: Phase 10a merged + `/search` and `/chat` UI shipped + embed-handler fix landed. PR 10b (Playwright + 1.0 release) is the only remaining item before 1.0.
 
 ## Objective
 
@@ -33,6 +33,10 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 - [x] Phase 8 — Hosted-mode (Better-auth, ownership, admin)
 - [x] Phase 9 — Analytics (Chart.js, cache, scheduled refresh)
 - [~] **CURRENT** Phase 10 — Polish + docs + 1.0 release
+  - [x] PR 10a — polish + docs (PR #14)
+  - [x] Phase 6 carry-over: `/search` and `/chat` UI (PR #15)
+  - [x] Bug fix: embed `source_pages` so `/chat` retrieves passages (PR #16)
+  - [ ] PR 10b — Playwright E2E + CI matrix + 1.0 version bump + tag
 
 Before each phase after 0/1, re-enter `superpowers:writing-plans` with the design + phase exit criteria to decompose into TDD-sized tasks.
 

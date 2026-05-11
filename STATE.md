@@ -1,6 +1,6 @@
 # State
 
-> Last updated: 2026-05-11
+> Last updated: 2026-05-11 (evening)
 
 ## Progress
 
@@ -34,8 +34,10 @@ stateDiagram-v2
 - **Phase 7** ✅ — progress updates: `<ProgressUpdateForm>` (RHF + Zod), `<ProgressUpdatesList>`, `<StatusBadge>` + `<StatusTransitionControl>` on the detail page, `<EditableSelectCell>` + Status column on the index table; `getLatestStatuses` SQL helper, `createProgressUpdate` + `listProgressUpdates` + `appendStatus` repos, server actions + shared Zod schemas.
 - **Phase 8** ✅ — hosted mode: Better-auth (email+password + magic link) wired via `BetterAuthProvider` behind the existing `AuthContext`; new `users` / `sessions` / `accounts` / `verifications` / `user_roles` schema with FKs on the existing nullable user-ref columns; `EmailProvider` interface + console-logger fake; first-signup-becomes-admin bootstrap; `/signup` / `/login` / `/magic-link` / `/forgot-password` / `/reset-password` / `/profile` pages; ownership-request flow on `/sources/[slug]` + admin queue at `/admin`; `<RoleTable>` + role-assignment.
 - **Phase 9** ✅ — analytics: `analyticsCache` repo + `analytics-sql.ts` (recs-per-status / recs-per-theme / progress cadence / source timeline); `analytics` service (`getOrCompute` + `computeAll`); `analytics.refresh` pg-boss handler scheduled at 02:00 daily; four Chart.js components (donut / bar / 2× line); `/analytics` global page (admin-only in hosted mode) and `/sources/[slug]/analytics` per-source page.
-- **Phase 10a** 🔧 in flight — polish: Resend email backend behind `EMAIL_PROVIDER=resend`, `@tailwindcss/typography` (closes Phase-5 carry-over), stacked `<SourceViewer>` below `md:` breakpoint, `docs/running-locally.md`, README screenshots + dual-mode explanation, `.env.example` updates.
-- **Phase 10b** ⏳ — Playwright E2E + CI matrix + 1.0 version bump + tag.
+- **Phase 10a** ✅ merged (PR #14) — polish: Resend email backend behind `EMAIL_PROVIDER=resend`, `@tailwindcss/typography`, stacked `<SourceViewer>` below `md:` breakpoint, `docs/running-locally.md`, README screenshots, `.env.example` updates. Bundled-in late additions: editorial-minimalist redesign across every surface (Geist + Source Serif 4 + JetBrains Mono, five-state hue palette, custom `.eyebrow` / `.section-num` / `.status` utilities), real `fs` storage adapter (the in-process fake broke cross-process upload→parse), OCR fake synthetic fallback, LLM `openai-compat` rebuilt for Llama (manual JSON parse + retry + `topLevelArrayField` wrapping), `/sources` upload page (was a stub), Postgres compose port → 5434.
+- **Phase 6 carry-over** ✅ merged (PR #15) — `/search` (server-rendered hybrid + keyword with rank chips) and `/chat` (streaming `ChatView` with citation-aware `MessageBubble`, retrieved-passages right-rail panel, friendly 503 hint).
+- **Embed handler fix** ✅ merged (PR #16) — `embedHandler` now embeds `source_pages` as well as `recommendations` (the bug that made `/chat` always answer "I don't have any passages"). Includes `scripts/backfill-page-embeddings.ts` for unembedded pages from before the fix. Idempotent.
+- **Phase 10b** ⏳ — Playwright E2E + CI matrix + 1.0 version bump + tag. Now actually testable end-to-end since `/search` and `/chat` are real surfaces.
 
 ## Component Status
 
@@ -64,7 +66,9 @@ stateDiagram-v2
 | Signed file URLs | ✅ | HMAC-SHA256 + 5min default TTL, served via `/api/files/[token]` |
 | Recommendations index + detail | ✅ | TanStack Table, URL-driven filters, shadcn Tabs, inline-editable Status column |
 | Progress updates UI | ✅ | Form + list + status transitions on the detail page; Phase 7 |
-| NetworkViz / chat UI | ⏳ | Phase 9 (NetworkViz) / TBD (chat UI) |
+| NetworkViz | ⏳ | Deferred to 1.x |
+| Search UI (`/search`) | ✅ | Server-rendered, hybrid + keyword, URL-canonical, rank chips (PR #15) |
+| Chat UI (`/chat`) | ✅ | Streaming with citation parsing + retrieved-passages panel (PR #15) |
 | Better-auth / hosted mode | ✅ | Phase 8 — `BetterAuthProvider`, auth pages, ownership requests, /admin |
 | Email provider | ✅ | Resend behind `EMAIL_PROVIDER=resend`; console-logger fake is the default for local-mode |
 | Markdown typography | ✅ | `@tailwindcss/typography` plugin registered (Phase 10a) |
