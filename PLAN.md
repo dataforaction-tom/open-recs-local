@@ -1,7 +1,7 @@
 # Plan
 
 > Last updated: 2026-05-11
-> Status: Phase 7 complete — Phase 8 (hosted-mode auth) up next
+> Status: Phase 8 complete — Phase 9 (analytics) up next
 
 ## Objective
 
@@ -17,7 +17,7 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 
 ## Current phase
 
-**Phase 8 — Hosted-mode features.** With `APP_MODE=hosted`, users can sign up, log in, upload private sources only they can see; admins can view/approve ownership requests. Wires Better-auth behind the existing `AuthContext` interface so local mode keeps working unchanged.
+**Phase 9 — Analytics.** Per-source analytics page and global analytics dashboard render Chart.js charts from `analytics_cache` (computed by a scheduled `analytics.refresh` pg-boss job). Surfaces recs per status, recs per thematic area, progress update cadence, and source publication timeline.
 
 ## Tasks (phase-level)
 
@@ -30,8 +30,8 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 - [x] Phase 5 — Source viewer (merged as PR #8)
 - [x] Phase 6 — Recommendations UI (merged as PR #9)
 - [x] Phase 7 — Progress updates (form, list, status transitions, EditableSelectCell)
-- [~] **CURRENT** Phase 8 — Hosted-mode (Better-auth, ownership, admin)
-- [ ] Phase 9 — Analytics (Chart.js, cache, scheduled refresh)
+- [x] Phase 8 — Hosted-mode (Better-auth, ownership, admin)
+- [~] **CURRENT** Phase 9 — Analytics (Chart.js, cache, scheduled refresh)
 - [ ] Phase 10 — Polish + docs + 1.0 release
 
 Before each phase after 0/1, re-enter `superpowers:writing-plans` with the design + phase exit criteria to decompose into TDD-sized tasks.

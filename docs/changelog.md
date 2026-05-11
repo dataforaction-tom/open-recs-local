@@ -6,7 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-Nothing yet — Phase 8 (hosted-mode auth) is up next.
+Nothing yet — Phase 9 (analytics) is up next.
+
+## 2026-05-11 — Phase 8: Hosted-mode auth, ownership, admin
+
+### Added
+
+- **Hosted mode.** Set `APP_MODE=hosted` (plus `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`) and the app turns into a multi-user instance: sign up, log in, your sources are visible to you only unless they're public.
+- **Sign-in surfaces.** Email + password with reset, plus a passwordless magic-link flow. Both at `/login`. Forgot-password is at `/forgot-password`; resets land on `/reset-password?token=…`.
+- **First signup becomes admin.** A one-shot bootstrap on the post-signup hook gives the very first user the `admin` role; subsequent signups default to `viewer`.
+- **Ownership requests.** Open a private source you don't own (signed in) and you'll see a Request access form. Admins see the queue at `/admin` and can Approve / Reject; approval flips the source's owner to the requester.
+- **Admin dashboard.** `/admin` lists pending ownership requests + a per-user role table where roles can be changed inline.
+- **Profile page.** `/profile` shows your email, name, and roles, plus a Sign out button.
+
+### Notes
+
+- **Email delivery is stub-only in Phase 8.** Reset and magic-link URLs are written to stdout (or your container logs). Real email backends (Resend, SMTP) land in Phase 10.
+- **Local mode is unchanged.** `/login`, `/signup`, `/admin`, "Request access" all 404 in local mode; the existing single-user flow keeps working.
+- **OAuth (Google/GitHub), 2FA, account deletion, and audit logs are intentionally not in scope** for v1. They're listed as carry-overs and can be opted in later.
 
 ## 2026-05-11 — Phase 7: Progress updates
 

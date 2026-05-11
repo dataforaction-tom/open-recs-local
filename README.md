@@ -68,6 +68,26 @@ pnpm db:migrate   # apply migrations
 pnpm db:seed      # insert taxonomy defaults (idempotent)
 ```
 
+### Hosted mode
+
+For a multi-user deployment, set:
+
+```bash
+APP_MODE=hosted
+BETTER_AUTH_SECRET=<32+ random chars>      # rotate to invalidate all sessions
+BETTER_AUTH_URL=https://your.app.example   # used in email links
+FILE_TOKEN_SECRET=<32+ random chars>
+```
+
+The first user to sign up becomes the admin (one-shot bootstrap). Subsequent
+signups are `viewer` by default — admins can promote at `/admin`.
+
+Phase 8 ships with a stub email backend that writes reset and magic-link
+URLs to stdout — useful for self-hosted instances during evaluation.
+Real email backends (Resend, SMTP) land in Phase 10. Until then, expect
+to copy the URLs out of your container logs after a "forgot password" /
+magic-link request.
+
 ## Project status
 
 Early days. The foundation is in place, the user-facing features are not yet.
