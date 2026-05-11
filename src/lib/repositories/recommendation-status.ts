@@ -71,6 +71,18 @@ export async function getLatestStatuses(
   return out;
 }
 
+/**
+ * Single-rec convenience over `getLatestStatuses`. Returns null when the rec
+ * has no status history (caller substitutes the default 'open').
+ */
+export async function getLatestStatus(
+  ctx: RepoContext,
+  recommendationId: string,
+): Promise<LatestStatus | null> {
+  const map = await getLatestStatuses(ctx, [recommendationId]);
+  return map.get(recommendationId) ?? null;
+}
+
 export type AppendStatusInput = {
   recommendationId: string;
   status: RecStatus;
