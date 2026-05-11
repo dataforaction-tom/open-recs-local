@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: '/sources', label: 'Sources' },
   { href: '/search', label: 'Search' },
   { href: '/chat', label: 'Chat' },
+  { href: '/analytics', label: 'Analytics' },
 ] as const;
 
 export function Navigation() {
