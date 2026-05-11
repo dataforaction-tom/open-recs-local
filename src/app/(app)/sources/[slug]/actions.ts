@@ -18,7 +18,7 @@ import {
 } from '@/lib/validation/ownership-request';
 
 export type OwnershipActionResult =
-  | { ok: true }
+  | { ok: true; id?: string }
   | { ok: false; error: string };
 
 async function buildContext(): Promise<{ ctx: RepoContext; close: () => Promise<void> }> {
@@ -45,7 +45,7 @@ export async function requestSourceAccess(input: unknown): Promise<OwnershipActi
     if ('error' in result) return { ok: false, error: result.error };
     revalidatePath('/sources', 'page');
     revalidatePath('/admin', 'page');
-    return { ok: true };
+    return { ok: true, id: result.id };
   } finally {
     await close();
   }

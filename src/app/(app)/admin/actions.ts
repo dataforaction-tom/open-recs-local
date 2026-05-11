@@ -10,7 +10,7 @@ import {
   approveOwnershipRequest,
   rejectOwnershipRequest,
 } from '@/lib/repositories/ownership-request';
-import { setUserRole } from '@/lib/repositories/user-role';
+import { LastAdminError, setUserRole } from '@/lib/repositories/user-role';
 import type { RepoContext } from '@/lib/repositories/types';
 import { ROLES } from '@/lib/db/schema';
 import { ResolveRequestInput } from '@/lib/validation/ownership-request';
@@ -74,6 +74,7 @@ export async function changeUserRole(input: unknown): Promise<AdminActionResult>
     revalidatePath('/admin', 'page');
     return { ok: true };
   } catch (err) {
+    if (err instanceof LastAdminError) return { ok: false, error: 'last_admin' };
     return { ok: false, error: err instanceof Error ? err.message : 'unknown' };
   } finally {
     await close();

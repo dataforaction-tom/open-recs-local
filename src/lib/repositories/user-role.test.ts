@@ -1,9 +1,17 @@
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startPostgres, type StartedPg } from '../../../tests/helpers/pg-container';
 import { applyMigrations } from '../../../tests/helpers/migrate';
 import { createDb, type Db, type DbClient } from '../db/client';
 import { seedUser } from '../../../tests/helpers/seed-user';
-import { assignRole, getRoles, listUsersWithRoles, revokeRole, setUserRole } from './user-role';
+import {
+  LastAdminError,
+  assignRole,
+  getRoles,
+  listUsersWithRoles,
+  revokeRole,
+  setUserRole,
+} from './user-role';
 import { AuthorizationError, type RepoContext } from './types';
 
 let pg: StartedPg;
@@ -100,6 +108,48 @@ describe('setUserRole', () => {
     await expect(
       setUserRole(ctxViewer(client.db, viewerId), targetId, 'editor'),
     ).rejects.toBeInstanceOf(AuthorizationError);
+  });
+});
+
+describe('last-admin guard', () => {
+  // These tests need a clean admin slate per case — use freshly seeded users
+  // and explicit role wiring rather than relying on test-order state.
+
+  it('setUserRole refuses to demote the last remaining admin', async () => {
+    const onlyAdmin = await seedUser(client.db, { email: 'la-only-admin@test' });
+    // Wipe any admins from prior tests' state, then make one.
+    await client.db.execute(sql`DELETE FROM user_roles WHERE role = 'admin'`);
+    await assignRole(ctxSystem(client.db), onlyAdmin, 'admin');
+
+    await expect(
+      setUserRole(ctxSystem(client.db), onlyAdmin, 'viewer'),
+    ).rejects.toBeInstanceOf(LastAdminError);
+
+    // Role unchanged.
+    expect(await getRoles(ctxSystem(client.db), onlyAdmin)).toEqual(['admin']);
+  });
+
+  it('setUserRole allows demoting when another admin exists', async () => {
+    const a1 = await seedUser(client.db, { email: 'la-multi-a1@test' });
+    const a2 = await seedUser(client.db, { email: 'la-multi-a2@test' });
+    await client.db.execute(sql`DELETE FROM user_roles WHERE role = 'admin'`);
+    await assignRole(ctxSystem(client.db), a1, 'admin');
+    await assignRole(ctxSystem(client.db), a2, 'admin');
+
+    await expect(
+      setUserRole(ctxSystem(client.db), a1, 'editor'),
+    ).resolves.toBeUndefined();
+    expect(await getRoles(ctxSystem(client.db), a1)).toEqual(['editor']);
+  });
+
+  it('revokeRole refuses to revoke the last admin role', async () => {
+    const onlyAdmin = await seedUser(client.db, { email: 'la-revoke-admin@test' });
+    await client.db.execute(sql`DELETE FROM user_roles WHERE role = 'admin'`);
+    await assignRole(ctxSystem(client.db), onlyAdmin, 'admin');
+
+    await expect(
+      revokeRole(ctxSystem(client.db), onlyAdmin, 'admin'),
+    ).rejects.toBeInstanceOf(LastAdminError);
   });
 });
 

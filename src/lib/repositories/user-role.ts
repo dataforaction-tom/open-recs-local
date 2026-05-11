@@ -1,6 +1,20 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import { users, userRoles, type Role } from '../db/schema';
 import { AuthorizationError, type RepoContext } from './types';
+
+/**
+ * Thrown when `setUserRole` would demote the last remaining admin. Hosted
+ * instances need at least one admin to reach the role-management surface
+ * itself; allowing the demotion would lock the instance out of in-app
+ * administration permanently (the first-signup bootstrap only fires when
+ * user_roles is empty, which by then it isn't).
+ */
+export class LastAdminError extends Error {
+  constructor(message = 'cannot demote the last remaining admin') {
+    super(message);
+    this.name = 'LastAdminError';
+  }
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -51,6 +65,26 @@ export async function setUserRole(
   if (!isAdmin(ctx)) throw new AuthorizationError('only admins can set user roles');
   if (!UUID_RE.test(userId)) throw new Error('invalid user id');
   await ctx.db.transaction(async (tx) => {
+    // If we're demoting the target away from admin, make sure they aren't
+    // the last admin standing. The count is taken inside the transaction
+    // so two concurrent demotions can't both pass the check — Postgres'
+    // default READ COMMITTED still serialises the write order, and we'd
+    // throw on the second one when its count drops to zero.
+    if (role !== 'admin') {
+      const wasAdmin = await tx
+        .select({ ok: sql<number>`1` })
+        .from(userRoles)
+        .where(and(eq(userRoles.userId, userId), eq(userRoles.role, 'admin')))
+        .limit(1);
+      if (wasAdmin.length > 0) {
+        const otherAdmins = await tx
+          .select({ ok: sql<number>`1` })
+          .from(userRoles)
+          .where(and(eq(userRoles.role, 'admin'), ne(userRoles.userId, userId)))
+          .limit(1);
+        if (otherAdmins.length === 0) throw new LastAdminError();
+      }
+    }
     await tx.delete(userRoles).where(eq(userRoles.userId, userId));
     await tx.insert(userRoles).values({ userId, role });
   });
@@ -64,9 +98,21 @@ export async function revokeRole(
 ): Promise<void> {
   if (!isAdmin(ctx)) throw new AuthorizationError('only admins can revoke roles');
   if (!UUID_RE.test(userId)) throw new Error('invalid user id');
-  await ctx.db
-    .delete(userRoles)
-    .where(and(eq(userRoles.userId, userId), eq(userRoles.role, role)));
+  await ctx.db.transaction(async (tx) => {
+    // Same last-admin guard as setUserRole: revoking 'admin' from the only
+    // remaining admin locks the instance out of in-app administration.
+    if (role === 'admin') {
+      const otherAdmins = await tx
+        .select({ ok: sql<number>`1` })
+        .from(userRoles)
+        .where(and(eq(userRoles.role, 'admin'), ne(userRoles.userId, userId)))
+        .limit(1);
+      if (otherAdmins.length === 0) throw new LastAdminError();
+    }
+    await tx
+      .delete(userRoles)
+      .where(and(eq(userRoles.userId, userId), eq(userRoles.role, role)));
+  });
 }
 
 export type UserWithRoles = {

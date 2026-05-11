@@ -14,7 +14,7 @@ import {
 
 export type RequestAccessAction = (
   input: RequestAccessInputT,
-) => Promise<{ ok: true } | { ok: false; error: string }>;
+) => Promise<{ ok: true; id?: string } | { ok: false; error: string }>;
 
 export type WithdrawAction = (
   input: { id: string },
@@ -68,7 +68,13 @@ export function RequestAccessForm({
         setServerMessage(NICE_ERROR[result.error] ?? 'Could not submit. Try again.');
         return;
       }
-      setRequestId('pending');
+      // Store the real request id so Withdraw can target it without a reload.
+      // The action propagates `id` from createOwnershipRequest's return.
+      if (!result.id) {
+        setServerMessage('Request created but the id was not returned. Reload to manage it.');
+        return;
+      }
+      setRequestId(result.id);
       reset({ sourceId });
     });
   }

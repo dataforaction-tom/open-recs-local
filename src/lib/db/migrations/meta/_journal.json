@@ -43,6 +43,13 @@
       "when": 1778489311956,
       "tag": "0005_graceful_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1778493474556,
+      "tag": "0006_lonely_maginty",
+      "breakpoints": true
     }
   ]
 }

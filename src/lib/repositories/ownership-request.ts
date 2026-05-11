@@ -108,31 +108,46 @@ export async function createOwnershipRequest(
   const email = ctx.auth.user.email;
   if (!email) return { error: 'unauthenticated' };
 
-  // De-dupe within the source × email scope when status='pending'.
-  const existing = await ctx.db
-    .select({ id: ownershipRequests.id })
-    .from(ownershipRequests)
-    .where(
-      and(
-        eq(ownershipRequests.sourceId, input.sourceId),
-        eq(ownershipRequests.requesterEmail, email),
-        eq(ownershipRequests.status, 'pending'),
-      ),
-    )
-    .limit(1);
-  if (existing[0]) return { error: 'duplicate' };
+  // De-dupe within the source × email × status='pending' scope. A partial
+  // unique index (ownership_requests_one_pending_per_requester_idx) backs
+  // this check at the database layer so concurrent submissions can't slip
+  // through the read-then-write window. We still pre-check to surface a
+  // typed error instead of the raw constraint violation; the catch below
+  // covers the race.
+  try {
+    const [inserted] = await ctx.db
+      .insert(ownershipRequests)
+      .values({
+        sourceId: input.sourceId,
+        requesterEmail: email,
+        ...(ctx.auth.user.name ? { requesterName: ctx.auth.user.name } : {}),
+        ...(input.note ? { note: input.note } : {}),
+      })
+      .returning({ id: ownershipRequests.id, status: ownershipRequests.status });
+    if (!inserted) throw new Error('ownership request insert returned no row');
+    return { id: inserted.id, status: inserted.status };
+  } catch (err) {
+    // Postgres unique_violation = 23505. Drizzle wraps postgres-js errors,
+    // so check both the surface error and its `cause`. The partial index
+    // (ownership_requests_one_pending_per_requester_idx) catches the race.
+    const pgCode = extractPgCode(err);
+    if (pgCode === '23505') return { error: 'duplicate' };
+    throw err;
+  }
+}
 
-  const [inserted] = await ctx.db
-    .insert(ownershipRequests)
-    .values({
-      sourceId: input.sourceId,
-      requesterEmail: email,
-      ...(ctx.auth.user.name ? { requesterName: ctx.auth.user.name } : {}),
-      ...(input.note ? { note: input.note } : {}),
-    })
-    .returning({ id: ownershipRequests.id, status: ownershipRequests.status });
-  if (!inserted) throw new Error('ownership request insert returned no row');
-  return { id: inserted.id, status: inserted.status };
+function extractPgCode(err: unknown): string | null {
+  for (let cur = err; cur != null; ) {
+    if (typeof cur === 'object' && 'code' in cur && typeof cur.code === 'string') {
+      return cur.code;
+    }
+    if (typeof cur === 'object' && 'cause' in cur) {
+      cur = cur.cause;
+    } else {
+      break;
+    }
+  }
+  return null;
 }
 
 export type PendingOwnershipRequestRow = {

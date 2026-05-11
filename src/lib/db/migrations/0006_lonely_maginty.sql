@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "ownership_requests_one_pending_per_requester_idx" ON "ownership_requests" USING btree ("source_id","requester_email") WHERE status = 'pending';

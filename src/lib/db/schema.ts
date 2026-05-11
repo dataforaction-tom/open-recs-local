@@ -9,6 +9,7 @@ import {
   boolean,
   vector,
   index,
+  uniqueIndex,
   customType,
   primaryKey,
 } from 'drizzle-orm/pg-core';
@@ -274,19 +275,31 @@ export const progressRatings = pgTable('progress_ratings', {
 export const OWNERSHIP_REQUEST_STATUS = ['pending', 'approved', 'rejected', 'withdrawn'] as const;
 export type OwnershipRequestStatus = (typeof OWNERSHIP_REQUEST_STATUS)[number];
 
-export const ownershipRequests = pgTable('ownership_requests', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  sourceId: uuid('source_id')
-    .notNull()
-    .references(() => sources.id, { onDelete: 'cascade' }),
-  requesterEmail: text('requester_email').notNull(),
-  requesterName: text('requester_name'),
-  note: text('note'),
-  status: text('status', { enum: OWNERSHIP_REQUEST_STATUS }).notNull().default('pending'),
-  resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
-  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const ownershipRequests = pgTable(
+  'ownership_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    requesterEmail: text('requester_email').notNull(),
+    requesterName: text('requester_name'),
+    note: text('note'),
+    status: text('status', { enum: OWNERSHIP_REQUEST_STATUS }).notNull().default('pending'),
+    resolvedBy: uuid('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // Partial unique index: one pending request per (source, requester) pair.
+    // Approved / rejected / withdrawn rows are exempt so a requester can
+    // re-request after a rejection. Backs the read-then-write check in the
+    // repo with an atomic database constraint that survives concurrency.
+    onePendingPerRequester: uniqueIndex('ownership_requests_one_pending_per_requester_idx')
+      .on(t.sourceId, t.requesterEmail)
+      .where(sql`status = 'pending'`),
+  }),
+);
 
 export const jobResults = pgTable('job_results', {
   id: uuid('id').primaryKey().defaultRandom(),

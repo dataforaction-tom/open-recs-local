@@ -146,6 +146,30 @@ describe('createOwnershipRequest', () => {
     const second = await createOwnershipRequest(ctx, { sourceId: srcId });
     expect('error' in second && second.error).toBe('duplicate');
   });
+
+  it('the partial unique index catches a concurrent submission race', async () => {
+    // Fire two creates in parallel from the same requester. With the
+    // pre-check alone, both could pass the existence read; the partial
+    // unique index forces one to fail at the database. Exactly one
+    // ok-with-id should land; the other should report 'duplicate'.
+    const ownerId = await seedUser(client.db, { email: 'or-race-owner@test' });
+    const srcId = await seedPrivateSource({
+      slug: 'or-race-src',
+      title: 'Race',
+      ownerUserId: ownerId,
+    });
+    const reqId = await seedUser(client.db, { email: 'or-race-req@test' });
+    const ctx = ctxUser(client.db, reqId, 'or-race-req@test');
+
+    const [a, b] = await Promise.all([
+      createOwnershipRequest(ctx, { sourceId: srcId }),
+      createOwnershipRequest(ctx, { sourceId: srcId }),
+    ]);
+    const okCount = [a, b].filter((r) => 'id' in r).length;
+    const dupCount = [a, b].filter((r) => 'error' in r && r.error === 'duplicate').length;
+    expect(okCount).toBe(1);
+    expect(dupCount).toBe(1);
+  });
 });
 
 describe('approve / reject / withdraw', () => {
