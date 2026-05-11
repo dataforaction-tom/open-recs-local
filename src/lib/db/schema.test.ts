@@ -107,3 +107,78 @@ describe('schema — taxonomy + misc', () => {
     expect(cols).toEqual(['recommendation_id', 'thematic_area_id']);
   });
 });
+
+describe('schema — auth aggregate', () => {
+  it('creates users, sessions, accounts, verifications, user_roles', async () => {
+    expect(await tableExists('users')).toBe(true);
+    expect(await tableExists('sessions')).toBe(true);
+    expect(await tableExists('accounts')).toBe(true);
+    expect(await tableExists('verifications')).toBe(true);
+    expect(await tableExists('user_roles')).toBe(true);
+  });
+
+  it('users.email is unique and NOT NULL', async () => {
+    const cols = await sql<{ is_nullable: string }[]>`
+      select is_nullable from information_schema.columns
+      where table_name = 'users' and column_name = 'email'
+    `;
+    expect(cols[0]?.is_nullable).toBe('NO');
+    const constraints = await sql<{ constraint_type: string }[]>`
+      select tc.constraint_type from information_schema.table_constraints tc
+      join information_schema.key_column_usage kcu
+        on tc.constraint_name = kcu.constraint_name
+      where tc.table_name = 'users' and kcu.column_name = 'email'
+        and tc.constraint_type = 'UNIQUE'
+    `;
+    expect(constraints).toHaveLength(1);
+  });
+
+  it('user_roles has composite primary key on (user_id, role)', async () => {
+    const rows = await sql<{ column_name: string }[]>`
+      select kcu.column_name
+      from information_schema.table_constraints tc
+      join information_schema.key_column_usage kcu
+        on tc.constraint_name = kcu.constraint_name
+      where tc.table_name = 'user_roles'
+        and tc.constraint_type = 'PRIMARY KEY'
+      order by kcu.ordinal_position
+    `;
+    expect(rows.map((r) => r.column_name)).toEqual(['user_id', 'role']);
+  });
+
+  it('FKs link nullable user-id columns back to users.id', async () => {
+    // The existing *_user_id columns (Phase 1 left them FK-less pending
+    // Better-auth) now reference users.id ON DELETE SET NULL.
+    const rows = await sql<{
+      table_name: string;
+      column_name: string;
+      delete_rule: string;
+    }[]>`
+      select
+        tc.table_name,
+        kcu.column_name,
+        rc.delete_rule
+      from information_schema.referential_constraints rc
+      join information_schema.table_constraints tc
+        on tc.constraint_name = rc.constraint_name
+      join information_schema.key_column_usage kcu
+        on kcu.constraint_name = rc.constraint_name
+      where tc.table_schema = 'public'
+        and rc.unique_constraint_name in (
+          select constraint_name from information_schema.table_constraints
+          where table_name = 'users' and constraint_type = 'PRIMARY KEY'
+        )
+      order by tc.table_name, kcu.column_name
+    `;
+
+    const fks = new Map(rows.map((r) => [`${r.table_name}.${r.column_name}`, r.delete_rule]));
+    expect(fks.get('sources.owner_user_id')).toBe('SET NULL');
+    expect(fks.get('recommendation_statuses.set_by_user_id')).toBe('SET NULL');
+    expect(fks.get('progress_updates.author_user_id')).toBe('SET NULL');
+    expect(fks.get('ownership_requests.resolved_by')).toBe('SET NULL');
+    // sessions / accounts / user_roles cascade — they are owned by the user.
+    expect(fks.get('sessions.user_id')).toBe('CASCADE');
+    expect(fks.get('accounts.user_id')).toBe('CASCADE');
+    expect(fks.get('user_roles.user_id')).toBe('CASCADE');
+  });
+});

@@ -5,6 +5,7 @@ import { applyMigrations } from '../../../tests/helpers/migrate';
 import { createDb, type Db, type DbClient } from '../db/client';
 import type { Role } from '../providers/auth/types';
 import { recommendations, sources } from '../db/schema';
+import { seedUser } from '../../../tests/helpers/seed-user';
 import {
   findRecommendationById,
   findSimilarRecommendations,
@@ -130,7 +131,7 @@ describe('searchRecommendationsKeyword', () => {
   });
 
   it('hides private-source recs from other users, shows them to the owner and to system', async () => {
-    const ownerId = randomUUID();
+    const ownerId = await seedUser(client.db);
     await seedRec({
       sourceSlug: 'priv-src',
       sourceTitle: 'Private Source',
@@ -213,7 +214,7 @@ describe('findRecommendationById', () => {
   });
 
   it('returns null when the rec belongs to a private source the viewer cannot see', async () => {
-    const otherUser = randomUUID();
+    const otherUser = await seedUser(client.db);
     const sys = ctxSystem(client.db);
     const [src] = await client.db
       .insert(sources)
@@ -277,7 +278,7 @@ describe('findSimilarRecommendations', () => {
 
   it('respects the auth filter (anon viewer sees only public siblings)', async () => {
     const sys = ctxSystem(client.db);
-    const owner = randomUUID();
+    const owner = await seedUser(client.db);
 
     const [pubSrc] = await client.db
       .insert(sources)

@@ -6,6 +6,7 @@ import { sources } from '../db/schema';
 import { createQueue, type Queue } from '../jobs/queue';
 import type { RepoContext } from './types';
 import { listRecentJobs, listRecentSources } from './jobs-list';
+import { seedUser } from '../../../tests/helpers/seed-user';
 
 let pg: StartedPg;
 let queue: Queue;
@@ -71,10 +72,12 @@ describe('listRecentJobs', () => {
 });
 
 describe('listRecentSources', () => {
-  const ownerA = '11111111-1111-1111-1111-111111111111';
-  const ownerB = '22222222-2222-2222-2222-222222222222';
+  let ownerA: string;
+  let ownerB: string;
 
   beforeAll(async () => {
+    ownerA = await seedUser(client.db);
+    ownerB = await seedUser(client.db);
     await client.db.insert(sources).values([
       { slug: 'public-1', title: 'Public 1', isPrivate: false },
       { slug: 'private-a', title: 'Private A', isPrivate: true, ownerUserId: ownerA },
