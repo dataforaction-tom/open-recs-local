@@ -32,6 +32,12 @@ export type Queue = {
     handler: QueueHandler<Q, R>,
   ) => Promise<void>;
   /**
+   * Register a cron schedule that enqueues `queue` with an empty payload on
+   * the supplied cron pattern. pg-boss's schedule API is idempotent on
+   * (queue, key) — calling it on every worker boot is safe.
+   */
+  schedule: <Q extends QueueName>(queue: Q, cron: string) => Promise<void>;
+  /**
    * Test-only: poll `pgboss.job` until the job completes or times out. Resolves
    * with the stored `output` (whatever the handler returned) on success,
    * rejects on `failed` state or timeout.
@@ -93,6 +99,11 @@ export async function createQueue(options: QueueOptions): Promise<Queue> {
     });
   };
 
+  const schedule: Queue['schedule'] = async (queue, cron) => {
+    await ensureQueue(queue);
+    await boss.schedule(queue, cron);
+  };
+
   const waitForResult: Queue['waitForResult'] = async <R>(jobId: string, timeoutMs: number) => {
     const deadline = Date.now() + timeoutMs;
     // Tight-ish poll: 100ms is well under pg-boss's default 2s work-polling
@@ -135,5 +146,5 @@ export async function createQueue(options: QueueOptions): Promise<Queue> {
     }
   };
 
-  return { enqueue, register, waitForResult, rawQuery, stop };
+  return { enqueue, register, schedule, waitForResult, rawQuery, stop };
 }
