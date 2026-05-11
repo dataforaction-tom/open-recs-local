@@ -6,6 +6,9 @@ import type { OcrProvider } from './ocr/types';
 import type { StorageProvider } from './storage/types';
 import type { EmailProvider } from './email/types';
 import { localAuth } from './auth/local';
+import { createBetterAuthProvider } from './auth/better-auth';
+import { createAuth } from '../auth/config';
+import { createDb } from '../db/client';
 import { createConsoleEmail } from './email/console';
 import { createFakeLlm } from './llm/fake';
 import { createOpenAICompatLlm } from './llm/openai-compat';
@@ -29,9 +32,25 @@ function notWired(kind: string, value: string): never {
   throw new Error(`provider ${kind}=${value} is not wired yet`);
 }
 
+// Lazily-constructed hosted-mode singletons. Auth + the underlying DB client
+// have side-effects (cookie reads, pool connections) so we share them across
+// requests within a process. Tests construct their own pair via
+// `createBetterAuthProvider(createAuth({...}), client.db)`.
+let hostedAuthSingleton: AuthProvider | null = null;
+
 function selectAuth(env: Env): AuthProvider {
   if (env.APP_MODE === 'local') return localAuth;
-  throw new Error('hosted auth is not wired yet');
+  if (!hostedAuthSingleton) {
+    const client = createDb(env.DATABASE_URL);
+    const auth = createAuth({
+      db: client.db,
+      email: createConsoleEmail(),
+      secret: env.BETTER_AUTH_SECRET,
+      baseURL: env.BETTER_AUTH_URL,
+    });
+    hostedAuthSingleton = createBetterAuthProvider(auth, client.db);
+  }
+  return hostedAuthSingleton;
 }
 
 function selectLlm(env: Env): LlmProvider {
