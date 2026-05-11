@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { type RecStatus } from '../db/schema';
+import { recommendationStatuses, type RecStatus } from '../db/schema';
+import { findRecommendationById } from './recommendation';
 import type { RepoContext } from './types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -68,4 +69,48 @@ export async function getLatestStatuses(
     });
   }
   return out;
+}
+
+export type AppendStatusInput = {
+  recommendationId: string;
+  status: RecStatus;
+  note?: string | undefined;
+};
+
+export type AppendStatusResult = {
+  id: string;
+  status: RecStatus;
+  setAt: Date;
+};
+
+/**
+ * Appends a row to `recommendation_statuses` for the given rec. Auth-checks
+ * via `findRecommendationById` first; returns null when the rec is invisible
+ * to the viewer or doesn't exist. `setByUserId` is taken from the auth
+ * context — local-mode contexts (no real user) write NULL, which the schema
+ * permits until Better-auth lands in Phase 8.
+ */
+export async function appendStatus(
+  ctx: RepoContext,
+  input: AppendStatusInput,
+): Promise<AppendStatusResult | null> {
+  const rec = await findRecommendationById(ctx, input.recommendationId);
+  if (!rec) return null;
+
+  const setByUserId = ctx.auth.user?.id && UUID_RE.test(ctx.auth.user.id) ? ctx.auth.user.id : null;
+  const [row] = await ctx.db
+    .insert(recommendationStatuses)
+    .values({
+      recommendationId: input.recommendationId,
+      status: input.status,
+      note: input.note ?? null,
+      setByUserId,
+    })
+    .returning({
+      id: recommendationStatuses.id,
+      status: recommendationStatuses.status,
+      setAt: recommendationStatuses.createdAt,
+    });
+  if (!row) return null;
+  return { id: row.id, status: row.status, setAt: row.setAt };
 }

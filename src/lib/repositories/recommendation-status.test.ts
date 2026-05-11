@@ -4,7 +4,7 @@ import { startPostgres, type StartedPg } from '../../../tests/helpers/pg-contain
 import { applyMigrations } from '../../../tests/helpers/migrate';
 import { createDb, type Db, type DbClient } from '../db/client';
 import { recommendationStatuses, recommendations, sources } from '../db/schema';
-import { getLatestStatuses } from './recommendation-status';
+import { appendStatus, getLatestStatuses } from './recommendation-status';
 import type { RepoContext } from './types';
 
 let pg: StartedPg;
@@ -163,5 +163,87 @@ describe('getLatestStatuses', () => {
     const result = await getLatestStatuses(ctxSystem(client.db), [recId, 'not-a-uuid', '   ']);
     expect(result.get(recId)?.status).toBe('done');
     expect(result.size).toBe(1);
+  });
+});
+
+describe('appendStatus', () => {
+  it('writes a row and returns id, status, setAt', async () => {
+    const { recId } = await seedRec({
+      sourceSlug: 'as-write-src',
+      recSlug: 'as-write-rec',
+    });
+    const result = await appendStatus(ctxSystem(client.db), {
+      recommendationId: recId,
+      status: 'in_progress',
+      note: 'kicking off',
+    });
+    expect(result).not.toBeNull();
+    expect(result?.status).toBe('in_progress');
+    expect(result?.setAt).toBeInstanceOf(Date);
+
+    const latest = await getLatestStatuses(ctxSystem(client.db), [recId]);
+    expect(latest.get(recId)?.status).toBe('in_progress');
+    expect(latest.get(recId)?.note).toBe('kicking off');
+  });
+
+  it('persists setByUserId from a uuid-bearing context', async () => {
+    const ownerId = randomUUID();
+    const { recId } = await seedRec({ sourceSlug: 'as-author-src', recSlug: 'as-author-rec' });
+    await appendStatus(ctxUser(client.db, ownerId), {
+      recommendationId: recId,
+      status: 'done',
+    });
+
+    const rows = await client.db
+      .select()
+      .from(recommendationStatuses)
+      .execute();
+    const row = rows.find((r) => r.recommendationId === recId);
+    expect(row?.setByUserId).toBe(ownerId);
+  });
+
+  it('returns null when the rec is invisible to the viewer', async () => {
+    const ownerId = randomUUID();
+    const otherId = randomUUID();
+    const { recId } = await seedRec({
+      sourceSlug: 'as-private-src',
+      recSlug: 'as-private-rec',
+      isPrivate: true,
+      ownerUserId: ownerId,
+    });
+
+    const sneaky = await appendStatus(ctxUser(client.db, otherId), {
+      recommendationId: recId,
+      status: 'blocked',
+    });
+    expect(sneaky).toBeNull();
+
+    const ok = await appendStatus(ctxUser(client.db, ownerId), {
+      recommendationId: recId,
+      status: 'in_progress',
+    });
+    expect(ok).not.toBeNull();
+  });
+
+  it('returns null for an unknown rec id', async () => {
+    const result = await appendStatus(ctxSystem(client.db), {
+      recommendationId: randomUUID(),
+      status: 'done',
+    });
+    expect(result).toBeNull();
+  });
+
+  it('appends rather than replacing — history grows monotonically', async () => {
+    const { recId } = await seedRec({
+      sourceSlug: 'as-history-src',
+      recSlug: 'as-history-rec',
+    });
+    await appendStatus(ctxSystem(client.db), { recommendationId: recId, status: 'in_progress' });
+    await appendStatus(ctxSystem(client.db), { recommendationId: recId, status: 'blocked' });
+    await appendStatus(ctxSystem(client.db), { recommendationId: recId, status: 'in_progress' });
+
+    const all = await client.db.select().from(recommendationStatuses).execute();
+    const forRec = all.filter((r) => r.recommendationId === recId);
+    expect(forRec).toHaveLength(3);
   });
 });
