@@ -70,17 +70,12 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
         },
         mode === 'hybrid' ? { embedding: providers.embedding } : {},
       );
-      // The search service returns RrfRow without created_at; for display
-      // purposes we look up sourceTitle via a follow-up listRecent intersect
-      // — but for Phase 6 we keep it simple and only show the result rows
-      // using the data the service hands back. A follow-up join can come if
-      // QA shows we miss the sourceTitle column.
       rows = hits.map((hit) => ({
         id: hit.id,
         title: hit.title,
         sourceSlug: hit.sourceSlug,
-        sourceTitle: hit.sourceSlug,
-        createdAt: new Date(0),
+        sourceTitle: hit.sourceTitle,
+        createdAt: hit.createdAt,
       }));
     } else {
       const recent = await listRecentRecommendations(ctx, { limit, filters });

@@ -91,6 +91,8 @@ type SearchBody = {
     body: string;
     sourceId: string;
     sourceSlug: string;
+    sourceTitle: string;
+    createdAt: string;
     rrfScore: number | null;
     keywordRank: number | null;
     vectorRank: number | null;
@@ -111,11 +113,13 @@ describe('GET /api/search', () => {
     expect(Object.keys(body.results[0] ?? {}).sort()).toEqual(
       [
         'body',
+        'createdAt',
         'id',
         'keywordRank',
         'rrfScore',
         'sourceId',
         'sourceSlug',
+        'sourceTitle',
         'title',
         'vectorRank',
       ].sort(),

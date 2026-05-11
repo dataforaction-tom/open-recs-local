@@ -14,6 +14,8 @@ export type RrfRow = {
   body: string;
   sourceId: string;
   sourceSlug: string;
+  sourceTitle: string;
+  createdAt: Date;
   rrfScore: number | null;
   keywordRank: number | null;
   vectorRank: number | null;
@@ -105,6 +107,8 @@ type RawRow = {
   body: string;
   sourceId: string;
   sourceSlug: string;
+  sourceTitle: string;
+  createdAt: Date | string;
   rrfScore: number | null;
   keywordRank: number | null;
   vectorRank: number | null;
@@ -117,6 +121,8 @@ function toRrfRow(row: RawRow): RrfRow {
     body: row.body,
     sourceId: row.sourceId,
     sourceSlug: row.sourceSlug,
+    sourceTitle: row.sourceTitle,
+    createdAt: row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt),
     rrfScore: row.rrfScore === null ? null : Number(row.rrfScore),
     keywordRank: row.keywordRank === null ? null : Number(row.keywordRank),
     vectorRank: row.vectorRank === null ? null : Number(row.vectorRank),
@@ -184,6 +190,8 @@ export async function runRecommendationsRrf(
       r.body        AS "body",
       r.source_id   AS "sourceId",
       s.slug        AS "sourceSlug",
+      s.title       AS "sourceTitle",
+      r.created_at  AS "createdAt",
       f.rrf_score   AS "rrfScore",
       f.keyword_rank AS "keywordRank",
       f.vector_rank  AS "vectorRank"
@@ -230,6 +238,8 @@ export async function runRecommendationsKeyword(
       r.body        AS "body",
       r.source_id   AS "sourceId",
       s.slug        AS "sourceSlug",
+      s.title       AS "sourceTitle",
+      r.created_at  AS "createdAt",
       NULL::float   AS "rrfScore",
       kr.rank       AS "keywordRank",
       NULL::int     AS "vectorRank"
