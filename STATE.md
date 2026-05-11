@@ -1,6 +1,6 @@
 # State
 
-> Last updated: 2026-05-10
+> Last updated: 2026-05-11
 
 ## Progress
 
@@ -14,10 +14,11 @@ stateDiagram-v2
     Phase4 --> Phase5: UI shell merged
     Phase5 --> Phase6: source viewer merged
     Phase6 --> Phase7: recommendations UI merged
-    Phase7 --> PhaseN: progress updates
+    Phase7 --> Phase8: progress updates merged
+    Phase8 --> PhaseN: hosted-mode auth
     PhaseN --> Live: 1.0 release
 
-    note right of Phase7: ← WE ARE HERE
+    note right of Phase8: ← WE ARE HERE
 ```
 
 - **Phase 0** ✅ merged (PR #1) — Next.js 16 + Postgres compose, CI green, MIT license.
@@ -29,7 +30,8 @@ stateDiagram-v2
 - **Phase 4** ✅ merged (PR #7) — shadcn/ui-based primitives, dark mode (next-themes), three route groups `(app)/(marketing)/(auth)`, mode-aware root redirect, `<FeatureGate>`, Navigation + Footer, DecisionFlow first-launch flow, dashboard stub with recent jobs + sources cards.
 - **Phase 5** ✅ merged (PR #8) — `/sources/[slug]` split-pane viewer with synced scroll via IntersectionObserver, HMAC-signed `/api/files/[token]` route + `signFileToken/verifyFileToken` helpers, image-rewrite rehype plugin, `useScrollSync` hook, `getSourceWithPagesBySlug` repo helper.
 - **Phase 6** ✅ merged (PR #9) — `/recommendations` index (TanStack Table, URL-driven filters, hybrid/keyword toggle), `/recommendations/[id]` detail with shadcn Tabs (Overview / Similar / Progress), `findRecommendationById` + `findSimilarRecommendations` + `listRecentRecommendations` repo helpers, `<FilterChips>`, `useSearchParamsState` hook.
-- **Phase 7** 🔧 starting — progress updates (stakeholder notes, evidence, status transitions, EditableSelectCell on the table).
+- **Phase 7** 🔧 in flight — progress updates: `<ProgressUpdateForm>` (RHF + Zod), `<ProgressUpdatesList>`, `<StatusBadge>` + `<StatusTransitionControl>` on the detail page, `<EditableSelectCell>` + Status column on the index table; `getLatestStatuses` SQL helper, `createProgressUpdate` + `listProgressUpdates` + `appendStatus` repos, server actions + shared Zod schemas.
+- **Phase 8** ⏳ — hosted-mode auth (Better-auth, ownership requests, admin dashboard).
 
 ## Component Status
 
@@ -56,8 +58,8 @@ stateDiagram-v2
 | Dashboard stub | ✅ | recent jobs + recent sources cards |
 | Source viewer (split-pane PDF) | ✅ | react-pdf + react-resizable-panels + signed-URL route |
 | Signed file URLs | ✅ | HMAC-SHA256 + 5min default TTL, served via `/api/files/[token]` |
-| Recommendations index + detail | ✅ | TanStack Table, URL-driven filters, shadcn Tabs |
-| Progress updates UI | ⏳ | Phase 7 |
+| Recommendations index + detail | ✅ | TanStack Table, URL-driven filters, shadcn Tabs, inline-editable Status column |
+| Progress updates UI | ✅ | Form + list + status transitions on the detail page; Phase 7 |
 | NetworkViz / chat UI | ⏳ | Phase 9 (NetworkViz) / TBD (chat UI) |
 | Better-auth / hosted mode | ⏳ | Phase 8 |
 
@@ -87,7 +89,10 @@ stateDiagram-v2
 - IntersectionObserver wiring + continuous-scroll PDF render are now in place — markdown ↔ PDF scroll sync is fully plumbed. Tune the debounce or scroll behaviour in Phase 10 polish if the UX feels off in QA.
 - Mobile layout for the source viewer is desktop-first only (split-pane assumes width). Add a stacked-pane mode below `md:` in Phase 10.
 - Markdown renderer uses `prose` Tailwind classes, but `@tailwindcss/typography` isn't actually installed — those classes silently no-op. If markdown looks unstyled, install the plugin or hand-author rules.
-- The recommendations table omits the current-status column. Phase 7 wires the latest-status lateral join + EditableSelectCell.
+- ~~The recommendations table omits the current-status column~~ — resolved in Phase 7 via `getLatestStatuses` + `<EditableSelectCell>`.
+- Edit / delete of existing progress updates is deferred to Phase 8 (needs role-aware authz from Better-auth). Local mode workaround: post a corrective second update.
+- File-attachment uploads for evidence references are deferred to Phase 10 polish; the field is free-text URL/path for now.
+- `?status=` filter on the recommendations index is a one-line follow-up once any future need arises; deliberately not shipped in Phase 7.
 - NetworkViz (canvas force-directed graph) is deferred from Phase 6 to Phase 9 with the analytics canvas tooling.
 
 **Resolved in Phase 2:**

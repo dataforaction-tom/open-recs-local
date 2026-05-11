@@ -6,7 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-Nothing yet — Phase 7 (progress updates) is being planned.
+Nothing yet — Phase 8 (hosted-mode auth) is up next.
+
+## 2026-05-11 — Phase 7: Progress updates
+
+### Added
+
+- **Progress updates on a recommendation.** The Progress tab on `/recommendations/<id>` is now interactive — post a notes-and-evidence update with optional taxonomy slugs (evidence type, progress rating). Updates render in a time-ordered list above the form.
+- **Status transitions.** Each rec now has a current status (`open`, `in_progress`, `done`, `blocked`, `withdrawn`). Change it from the Progress tab via an inline select; transitions append to a history table so we keep a full timeline.
+- **Inline status editing on the recommendations table.** A new Status column on `/recommendations` shows the current status as a badge; click to change it inline. Optimistic update; rolls back if the write fails.
+
+### Notes
+
+- Edit/delete of existing progress updates is intentionally deferred to Phase 8, where Better-auth provides per-user roles. The local-mode workaround is to post a corrective second update.
+- File uploads for the evidence reference are deferred to Phase 10 polish; the field accepts a free-text URL or storage path for now.
 
 ## 2026-05-10 — Phase 6: Recommendations UI
 

@@ -1,7 +1,7 @@
 # Plan
 
-> Last updated: 2026-05-10
-> Status: Phase 6 complete — Phase 7 (progress updates) up next
+> Last updated: 2026-05-11
+> Status: Phase 7 complete — Phase 8 (hosted-mode auth) up next
 
 ## Objective
 
@@ -17,7 +17,7 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 
 ## Current phase
 
-**Phase 7 — Progress updates.** Stakeholders post progress updates on a rec (notes, evidence, status transitions). Builds the EditableSelectCell (deferred from Phase 6) and fills the empty Progress tab on the detail page.
+**Phase 8 — Hosted-mode features.** With `APP_MODE=hosted`, users can sign up, log in, upload private sources only they can see; admins can view/approve ownership requests. Wires Better-auth behind the existing `AuthContext` interface so local mode keeps working unchanged.
 
 ## Tasks (phase-level)
 
@@ -29,8 +29,8 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 - [x] Phase 4 — UI shell (merged as PR #7)
 - [x] Phase 5 — Source viewer (merged as PR #8)
 - [x] Phase 6 — Recommendations UI (merged as PR #9)
-- [~] **CURRENT** Phase 7 — Progress updates (form, list, status transitions, EditableSelectCell)
-- [ ] Phase 8 — Hosted-mode (Better-auth, ownership, admin)
+- [x] Phase 7 — Progress updates (form, list, status transitions, EditableSelectCell)
+- [~] **CURRENT** Phase 8 — Hosted-mode (Better-auth, ownership, admin)
 - [ ] Phase 9 — Analytics (Chart.js, cache, scheduled refresh)
 - [ ] Phase 10 — Polish + docs + 1.0 release
 

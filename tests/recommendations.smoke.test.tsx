@@ -16,6 +16,7 @@ const fixtureRows: RecommendationRow[] = [
     sourceSlug: 'sample-report',
     sourceTitle: 'Sample report',
     createdAt: new Date('2026-05-10T00:00:00Z'),
+    latestStatus: 'open',
   },
   {
     id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
@@ -23,8 +24,11 @@ const fixtureRows: RecommendationRow[] = [
     sourceSlug: 'sample-report',
     sourceTitle: 'Sample report',
     createdAt: new Date('2026-05-09T00:00:00Z'),
+    latestStatus: 'in_progress',
   },
 ];
+
+const noopAction = vi.fn().mockResolvedValue({ ok: true as const });
 
 const onClear = vi.fn();
 
@@ -47,7 +51,7 @@ describe('Recommendations index pieces (smoke)', () => {
           ]}
           onClear={onClear}
         />
-        <RecommendationsTable rows={fixtureRows} />
+        <RecommendationsTable rows={fixtureRows} onStatusTransition={noopAction} />
       </div>,
     );
 
