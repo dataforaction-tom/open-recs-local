@@ -78,10 +78,15 @@ export function SourceMarkdown({ pages, activePage, onActivePageChange }: Source
   return (
     <div
       ref={containerRef}
-      className="prose prose-sm dark:prose-invert max-w-none h-full overflow-auto"
+      className="prose prose-sm font-serif max-w-none h-full overflow-auto px-1 prose-headings:font-sans prose-headings:tracking-tight prose-code:font-mono prose-a:text-accent prose-a:no-underline hover:prose-a:underline"
     >
       {pages.map((page) => (
-        <section key={page.pageNumber} data-page={page.pageNumber} className="py-4">
+        <section
+          key={page.pageNumber}
+          data-page={page.pageNumber}
+          className="border-b border-rule py-6 last:border-b-0"
+        >
+          <div className="eyebrow mb-3 text-muted-foreground">page {page.pageNumber}</div>
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             // Order matters: rewrite first so our /api/files URLs survive

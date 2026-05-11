@@ -38,20 +38,45 @@ export default async function AdminPage() {
     ]);
 
     return (
-      <div className="space-y-8">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-          <p className="text-sm text-muted-foreground">
-            Approve ownership requests and manage user roles. The recent jobs
-            widget on the{' '}
-            <Link href="/dashboard" className="underline hover:text-foreground">
+      <div className="space-y-10">
+        <header className="space-y-3">
+          <div className="section-num">Admin</div>
+          <h1 className="text-4xl tracking-tight">Stewardship of the collection</h1>
+          <p className="font-serif text-base italic text-muted-foreground">
+            Approve ownership requests and tune user roles. The pipeline state lives on the{' '}
+            <Link
+              href="/dashboard"
+              className="text-accent not-italic underline-offset-4 hover:underline"
+            >
               dashboard
-            </Link>{' '}
-            shows pipeline state.
+            </Link>
+            .
           </p>
         </header>
-        <OwnershipQueue rows={pending} onApprove={approveRequest} onReject={rejectRequest} />
-        <RoleTable rows={users} onChange={changeUserRole} />
+
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+            <h2 className="text-sm font-medium">Ownership requests</h2>
+            <span className="font-mono text-xs text-muted-foreground">
+              {pending.length} pending
+            </span>
+          </div>
+          <OwnershipQueue
+            rows={pending}
+            onApprove={approveRequest}
+            onReject={rejectRequest}
+          />
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+            <h2 className="text-sm font-medium">User roles</h2>
+            <span className="font-mono text-xs text-muted-foreground">
+              {users.length} accounts
+            </span>
+          </div>
+          <RoleTable rows={users} onChange={changeUserRole} />
+        </section>
       </div>
     );
   } finally {

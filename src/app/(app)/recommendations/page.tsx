@@ -101,14 +101,25 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
     }));
 
     return (
-      <div className="space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Recommendations</h1>
-          <p className="text-sm text-muted-foreground">
-            Search and browse recommendations across all sources.
+      <div className="space-y-12">
+        <header className="space-y-3">
+          <div className="section-num">03 · Recommendations</div>
+          <h1 className="text-4xl tracking-tight">Every recommendation, side by side</h1>
+          <p className="max-w-[42rem] font-serif text-lg italic leading-relaxed text-foreground/85">
+            Each row is one recommendation pulled from one source. Open a row to read
+            the full text, change its status inline, or post a progress update.
           </p>
         </header>
+
         <RecommendationsIndexControls />
+
+        <div className="flex items-baseline justify-between border-b border-rule-strong pb-3">
+          <h2 className="text-sm font-medium">Inventory</h2>
+          <span className="eyebrow">
+            {rows.length} {rows.length === 1 ? 'recommendation' : 'recommendations'}
+          </span>
+        </div>
+
         <RecommendationsTable rows={rows} onStatusTransition={transitionStatus} />
       </div>
     );

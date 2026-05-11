@@ -50,7 +50,10 @@ describe('UI shell smoke', () => {
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByText(/recent jobs/i)).toBeInTheDocument();
     expect(screen.getByText(/recent sources/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /github/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Source' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('github.com/dataforaction-tom/open-recs-local'),
+    );
     expect(screen.getByRole('button', { name: /theme/i })).toBeInTheDocument();
   });
 

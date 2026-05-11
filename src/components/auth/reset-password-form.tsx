@@ -29,9 +29,10 @@ export function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <p className="text-sm text-destructive">
-        Missing reset token. Request a new reset link from <a href="/forgot-password" className="underline">forgot password</a>.
-      </p>
+      <div className="border border-destructive bg-accent-claret-soft px-3 py-2 text-sm text-destructive">
+        Missing reset token. Request a new link via{' '}
+        <a href="/forgot-password" className="underline underline-offset-4">forgot password</a>.
+      </div>
     );
   }
 
@@ -68,7 +69,7 @@ export function ResetPasswordForm() {
       {serverError && (
         <div
           role="alert"
-          className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border border-destructive bg-accent-claret-soft px-3 py-2 text-sm text-destructive"
         >
           {serverError}
         </div>

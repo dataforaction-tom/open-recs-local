@@ -13,6 +13,11 @@ function formatBucket(iso: string): string {
   return MONTH_FMT.format(d);
 }
 
+const LINE_COLOR = 'oklch(0.58 0.10 145)';                // moss
+const FILL_COLOR = 'oklch(0.58 0.10 145 / 0.18)';
+const AXIS_COLOR = 'oklch(0.55 0.006 70)';
+const GRID_COLOR = 'oklch(0.92 0.004 80)';
+
 export function TimelineLine({ rows }: { rows: TimelineRow[] }) {
   const total = rows.reduce((s, r) => s + r.count, 0);
   if (total === 0) return <EmptyChart label="No sources published in the last 12 months." />;
@@ -22,11 +27,13 @@ export function TimelineLine({ rows }: { rows: TimelineRow[] }) {
     datasets: [
       {
         data: rows.map((r) => r.count),
-        borderColor: '#059669',
-        backgroundColor: 'rgba(5, 150, 105, 0.2)',
+        borderColor: LINE_COLOR,
+        backgroundColor: FILL_COLOR,
         tension: 0.3,
         fill: true,
         pointRadius: 3,
+        pointBackgroundColor: LINE_COLOR,
+        pointBorderColor: LINE_COLOR,
       },
     ],
   };
@@ -38,7 +45,17 @@ export function TimelineLine({ rows }: { rows: TimelineRow[] }) {
           responsive: true,
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { precision: 0, color: AXIS_COLOR, font: { family: 'var(--font-sans)' } },
+              grid: { color: GRID_COLOR },
+            },
+            x: {
+              ticks: { color: AXIS_COLOR, font: { family: 'var(--font-sans)' } },
+              grid: { display: false },
+            },
+          },
         }}
       />
     </div>

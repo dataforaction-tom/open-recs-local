@@ -41,10 +41,12 @@ export function ForgotPasswordForm() {
 
   if (sent) {
     return (
-      <p className="text-sm text-muted-foreground">
-        If an account exists for that email, a reset link has been sent. In dev, the URL is in
-        the server logs.
-      </p>
+      <div className="border border-accent bg-accent-soft/50 px-3 py-3 text-sm">
+        If an account exists for that email, a reset link has been sent.{' '}
+        <span className="font-serif italic text-muted-foreground">
+          In dev, the URL is in the server logs.
+        </span>
+      </div>
     );
   }
 
@@ -58,7 +60,7 @@ export function ForgotPasswordForm() {
       {serverError && (
         <div
           role="alert"
-          className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="border border-destructive bg-accent-claret-soft px-3 py-2 text-sm text-destructive"
         >
           {serverError}
         </div>

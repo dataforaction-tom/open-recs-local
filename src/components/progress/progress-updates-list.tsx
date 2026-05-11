@@ -1,5 +1,4 @@
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import type { ProgressUpdateRow } from '@/lib/repositories/progress-update';
 
 const RTF = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
@@ -22,22 +21,26 @@ function relativeFromNow(date: Date, now: Date = new Date()): string {
 }
 
 export function ProgressUpdatesList({ rows }: { rows: ProgressUpdateRow[] }) {
-  if (rows.length === 0) {
-    return (
-      <div className="rounded-md border border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-        No progress updates yet — be the first to post one.
-      </div>
-    );
-  }
-
   return (
-    <ol className="space-y-3">
-      {rows.map((row) => (
-        <li key={row.id}>
-          <Card>
-            <CardContent className="space-y-2 pt-4">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+    <section className="space-y-4">
+      <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+        <h3 className="text-sm font-medium">Progress updates</h3>
+        <span className="text-sm text-muted-foreground">
+          {rows.length} {rows.length === 1 ? 'entry' : 'entries'}
+        </span>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="py-2 font-serif italic text-muted-foreground">
+          No progress updates yet. Be the first to post one below.
+        </p>
+      ) : (
+        <ol className="divide-y divide-rule">
+          {rows.map((row) => (
+            <li key={row.id} className="space-y-2 py-4">
+              <div className="flex flex-wrap items-baseline gap-2">
                 <time
+                  className="ref tabular-nums"
                   dateTime={row.createdAt.toISOString()}
                   title={row.createdAt.toLocaleString()}
                 >
@@ -47,26 +50,28 @@ export function ProgressUpdatesList({ rows }: { rows: ProgressUpdateRow[] }) {
                   <Badge variant="outline">{row.evidenceType.name}</Badge>
                 )}
                 {row.userProgressRating && (
-                  <Badge variant="secondary">{row.userProgressRating.name}</Badge>
+                  <Badge variant="active">{row.userProgressRating.name}</Badge>
                 )}
               </div>
-              <p className="whitespace-pre-wrap text-sm">{row.progressNotes}</p>
+              <p className="whitespace-pre-wrap font-serif text-[0.98rem] leading-relaxed">
+                {row.progressNotes}
+              </p>
               {row.evidenceUrl && (
-                <p className="text-xs">
+                <p className="text-sm">
                   <a
                     href={row.evidenceUrl}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="text-muted-foreground underline hover:text-foreground"
+                    className="text-accent underline underline-offset-4 hover:text-foreground"
                   >
                     {row.evidenceUrl}
                   </a>
                 </p>
               )}
-            </CardContent>
-          </Card>
-        </li>
-      ))}
-    </ol>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   );
 }

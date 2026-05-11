@@ -89,11 +89,17 @@ export default async function SourceDetailPage({ params }: PageProps) {
     });
 
     return (
-      <div className="space-y-3">
-        <div className="flex justify-end">
+      <div className="space-y-4">
+        <div className="flex items-baseline justify-between">
+          <Link
+            href="/sources"
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-accent hover:underline"
+          >
+            ← All sources
+          </Link>
           <Link
             href={`/sources/${slug}/analytics`}
-            className="text-sm text-muted-foreground underline hover:text-foreground"
+            className="text-sm text-accent underline-offset-4 hover:underline"
           >
             View analytics →
           </Link>

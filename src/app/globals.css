@@ -6,12 +6,57 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Editorial-minimalist design tokens.
+ *
+ * Calibrated against good-ship.co.uk and techfreedom.eu. The palette is
+ * restrained: warm cream paper, deep charcoal ink, a single muted teal
+ * accent used sparingly to mark state. Headings and chrome use Geist
+ * (humanist sans). Body prose and italic callouts use Source Serif 4.
+ *
+ * Light + dark themes share the same hue/chroma palette and only flip
+ * lightness. No texture in the background — the eye should rest.
+ */
+
 @theme inline {
+  /* ----- typography ----- */
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+
+  /* ----- colour tokens ----- */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --color-paper-2: var(--paper-2);
+  --color-rule: var(--rule);
+  --color-rule-strong: var(--rule-strong);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ochre: var(--accent-ochre);
+  --color-accent-ochre-soft: var(--accent-ochre-soft);
+  --color-accent-moss: var(--accent-moss);
+  --color-accent-moss-soft: var(--accent-moss-soft);
+  --color-accent-claret: var(--accent-claret);
+  --color-accent-claret-soft: var(--accent-claret-soft);
+  --color-accent-mauve: var(--accent-mauve);
+  --color-accent-mauve-soft: var(--accent-mauve-soft);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -20,113 +65,263 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* ----- radii: zero. Sharp corners read as editorial. ----- */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* ----- light theme: airy, near-white, soft contrast ----- */
+
+  /* Background reads as paper but pulls almost all the way to white so
+     the page feels open. `paper-2` is a hair below for raised surfaces. */
+  --background: oklch(0.995 0.003 90);
+  --paper-2: oklch(0.985 0.004 86);
+  /* Ink: a soft graphite rather than near-black, easier on the eye. */
+  --foreground: oklch(0.300 0.006 70);
+
+  /* Rules: barely there. Hairline is whisper-thin; strong is a calm grey. */
+  --rule: oklch(0.92 0.004 80);
+  --rule-strong: oklch(0.72 0.006 75);
+
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+
+  /* Primary: soft ink. The rare filled action. */
+  --primary: oklch(0.330 0.006 70);
+  --primary-foreground: oklch(0.99 0.003 90);
+
+  --secondary: oklch(0.97 0.005 82);
+  --secondary-foreground: var(--foreground);
+
+  --muted: oklch(0.96 0.005 83);
+  --muted-foreground: oklch(0.55 0.006 70);
+
+  /* Primary accent: editorial teal. Active state, links, focus. */
+  --accent: oklch(0.52 0.10 200);
+  --accent-foreground: oklch(0.99 0.003 90);
+  --accent-soft: oklch(0.95 0.04 200);   /* faint background tint */
+
+  /* Secondary accents — used for status colours, callout backgrounds,
+     and section-number swatches. Three calm hues that share lightness
+     so they sit at the same visual weight. None is loud; together they
+     give the page some character without tipping into SaaS dashboard. */
+  --accent-ochre: oklch(0.68 0.14 75);          /* warm sand — pending / in-progress */
+  --accent-ochre-soft: oklch(0.95 0.05 80);     /* tinted background */
+  --accent-moss: oklch(0.58 0.10 145);          /* quiet green — done / ready */
+  --accent-moss-soft: oklch(0.95 0.04 140);     /* tinted background */
+  --accent-claret: oklch(0.50 0.14 18);         /* warm red — destructive */
+  --accent-claret-soft: oklch(0.94 0.04 20);    /* tinted background */
+  --accent-mauve: oklch(0.58 0.08 320);         /* soft violet — neutral chip */
+  --accent-mauve-soft: oklch(0.95 0.03 320);    /* tinted background */
+
+  --destructive: var(--accent-claret);
+  --destructive-foreground: oklch(0.99 0.003 90);
+
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: oklch(0.58 0.06 200);
+
+  --chart-1: oklch(0.52 0.07 200);   /* accent */
+  --chart-2: oklch(0.42 0.010 70);
+  --chart-3: oklch(0.58 0.012 72);
+  --chart-4: oklch(0.74 0.010 75);
+  --chart-5: oklch(0.88 0.006 80);
+
+  --sidebar: var(--paper-2);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--rule);
+  --sidebar-ring: var(--ring);
+
+  --radius: 0px;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: oklch(0.165 0.008 70);
+  --paper-2: oklch(0.200 0.008 70);
+  --foreground: oklch(0.95 0.008 85);
+
+  --rule: oklch(0.30 0.010 70);
+  --rule-strong: oklch(0.50 0.012 75);
+
+  --card: var(--background);
+  --card-foreground: var(--foreground);
+  --popover: var(--background);
+  --popover-foreground: var(--foreground);
+
+  --primary: oklch(0.95 0.008 85);
+  --primary-foreground: oklch(0.200 0.008 70);
+
+  --secondary: oklch(0.24 0.008 70);
+  --secondary-foreground: var(--foreground);
+
+  --muted: oklch(0.23 0.008 70);
+  --muted-foreground: oklch(0.62 0.008 75);
+
+  --accent: oklch(0.68 0.12 200);
+  --accent-foreground: oklch(0.13 0.008 70);
+  --accent-soft: oklch(0.30 0.06 200);
+
+  --accent-ochre: oklch(0.78 0.14 75);
+  --accent-ochre-soft: oklch(0.30 0.06 75);
+  --accent-moss: oklch(0.70 0.12 145);
+  --accent-moss-soft: oklch(0.28 0.06 140);
+  --accent-claret: oklch(0.66 0.16 18);
+  --accent-claret-soft: oklch(0.28 0.06 18);
+  --accent-mauve: oklch(0.70 0.10 320);
+  --accent-mauve-soft: oklch(0.28 0.05 320);
+
+  --destructive: var(--accent-claret);
+  --destructive-foreground: oklch(0.975 0.008 85);
+
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: oklch(0.66 0.08 200);
+
+  --chart-1: oklch(0.62 0.08 200);
+  --chart-2: oklch(0.85 0.008 85);
+  --chart-3: oklch(0.70 0.010 78);
+  --chart-4: oklch(0.55 0.012 72);
+  --chart-5: oklch(0.38 0.010 70);
+
+  --sidebar: var(--paper-2);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--accent);
+  --sidebar-primary-foreground: var(--accent-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--rule);
+  --sidebar-ring: var(--ring);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    border-radius: 0 !important;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-variant-numeric: tabular-nums;
+    /* No background texture — the page breathes. */
   }
+
   html {
     @apply font-sans;
+    font-size: 16px;
+    line-height: 1.55;
   }
+
+  /* Body prose lives in the serif. */
+  .prose, .font-serif {
+    font-family: var(--font-serif), Georgia, serif;
+  }
+
+  /* Headings use the humanist sans, medium weight. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.012em;
+    line-height: 1.15;
+  }
+
+  /* Section eyebrow — small sans label with subtle letterspacing.
+     Used for "Section 01", catalogue subtitles, etc. */
+  .eyebrow {
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.06em;
+    color: var(--muted-foreground);
+    font-weight: 500;
+  }
+
+  /* Chapter / section numeral — sans, tabular, accent-coloured so each
+     page begins with a small splash of the editorial palette. */
+  .section-num {
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* Hairline rules. */
+  hr.rule, .rule {
+    border: 0;
+    border-top: 1px solid var(--rule);
+  }
+  hr.rule-strong, .rule-strong {
+    border: 0;
+    border-top: 1px solid var(--rule-strong);
+  }
+
+  /* Inline reference — mono, for slugs/IDs/page numbers. */
+  .ref {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+  }
+
+  /* Status indicator: small dot + calm text label. Variants set the dot
+     colour via `data-state`. Each state gets a distinct hue so the page
+     reads at a glance: ochre = in motion, teal = active, moss = done,
+     claret = failed, muted grey = pending / inert. */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--foreground);
+    line-height: 1.4;
+  }
+  .status::before {
+    content: "";
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 9999px;
+    background: var(--muted-foreground);
+    flex-shrink: 0;
+  }
+  .status[data-state="pending"]::before { background: var(--accent-mauve); }
+  .status[data-state="active"]::before,
+  .status[data-state="in-progress"]::before { background: var(--accent-ochre); }
+  .status[data-state="done"]::before,
+  .status[data-state="ready"]::before { background: var(--accent-moss); }
+  .status[data-state="failed"]::before,
+  .status[data-state="blocked"]::before { background: var(--destructive); }
+  .status[data-state="withdrawn"]::before {
+    background: var(--muted-foreground);
+    opacity: 0.5;
+  }
+
+  /* Editorial-style links: underlined by default, accent on hover. */
+  .prose a, a.link {
+    color: var(--foreground);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.18em;
+    transition: color 150ms ease;
+  }
+  .prose a:hover, a.link:hover { color: var(--accent); }
 }
