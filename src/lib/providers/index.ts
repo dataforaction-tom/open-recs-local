@@ -4,7 +4,9 @@ import type { LlmProvider } from './llm/types';
 import type { EmbeddingProvider } from './embedding/types';
 import type { OcrProvider } from './ocr/types';
 import type { StorageProvider } from './storage/types';
+import type { EmailProvider } from './email/types';
 import { localAuth } from './auth/local';
+import { createConsoleEmail } from './email/console';
 import { createFakeLlm } from './llm/fake';
 import { createOpenAICompatLlm } from './llm/openai-compat';
 import { createFakeEmbedding } from './embedding/fake';
@@ -20,6 +22,7 @@ export type Providers = {
   embedding: EmbeddingProvider;
   ocr: OcrProvider;
   storage: StorageProvider;
+  email: EmailProvider;
 };
 
 function notWired(kind: string, value: string): never {
@@ -116,6 +119,12 @@ function selectStorage(env: Env): StorageProvider {
   }
 }
 
+function selectEmail(_env: Env): EmailProvider {
+  // Phase 8 ships the console fake only. Phase 10 adds an EMAIL_PROVIDER
+  // env switch + ResendEmailProvider / SmtpEmailProvider.
+  return createConsoleEmail();
+}
+
 export function createProviders(env: Env): Providers {
   return {
     auth: selectAuth(env),
@@ -123,5 +132,6 @@ export function createProviders(env: Env): Providers {
     embedding: selectEmbedding(env),
     ocr: selectOcr(env),
     storage: selectStorage(env),
+    email: selectEmail(env),
   };
 }
