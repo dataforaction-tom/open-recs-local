@@ -4,11 +4,17 @@ import { createDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { signFileToken } from '@/lib/files/sign';
 import { createProviders } from '@/lib/providers';
+import { describeSourceAccess } from '@/lib/repositories/ownership-request';
 import { getSourceWithPagesBySlug } from '@/lib/repositories/source';
 import { NotFoundError } from '@/lib/repositories/types';
 import type { RepoContext } from '@/lib/repositories/types';
 import { SourceViewer } from '@/components/source-viewer/source-viewer';
+import { RequestAccessForm } from '@/components/sources/request-access-form';
 import type { SourcePage } from '@/components/source-viewer/source-markdown';
+import {
+  requestSourceAccess,
+  withdrawSourceAccessRequest,
+} from './actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +33,28 @@ export default async function SourceDetailPage({ params }: PageProps) {
     const auth = await providers.auth.getContext(req);
     const ctx: RepoContext = { db: client.db, auth };
 
+    // Inspect the slug's visibility first. In local mode the source is always
+    // visible to the system context; in hosted mode it may be private to
+    // another user. Branching here avoids leaking existence via the 404
+    // semantics of the public-only loader.
+    const access = await describeSourceAccess(ctx, slug);
+    if (access.kind === 'not-found') notFound();
+
+    if (access.kind === 'private') {
+      // Anonymous viewers: don't expose request-access UI. Treat as not-found
+      // so the existence isn't leaked to non-signed-in visitors.
+      if (!ctx.auth.user.email) notFound();
+      return (
+        <RequestAccessForm
+          sourceId={access.sourceId}
+          sourceTitle={access.title}
+          pendingRequestId={access.pendingRequestId}
+          action={requestSourceAccess}
+          withdrawAction={withdrawSourceAccessRequest}
+        />
+      );
+    }
+
     let data;
     try {
       data = await getSourceWithPagesBySlug(ctx, slug);
@@ -36,8 +64,6 @@ export default async function SourceDetailPage({ params }: PageProps) {
     }
 
     if (!data.originalPdfKey) {
-      // Source still parsing — Phase 4's dashboard already exposes job state;
-      // a friendlier "still processing" shell is Phase 10 polish.
       return (
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold tracking-tight">{data.source.title}</h1>
@@ -46,9 +72,6 @@ export default async function SourceDetailPage({ params }: PageProps) {
       );
     }
 
-    // Pre-mint signed URLs server-side so the client never has to round-trip
-    // through /api/files/sign. Tokens last the default 5 minutes; refresh
-    // requires reload (Phase 10 polish).
     const pdfToken = signFileToken(env.FILE_TOKEN_SECRET, { key: data.originalPdfKey });
     const pdfUrl = `/api/files/${pdfToken}`;
 
