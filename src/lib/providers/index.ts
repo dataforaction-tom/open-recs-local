@@ -10,6 +10,7 @@ import { createBetterAuthProvider } from './auth/better-auth';
 import { createAuth } from '../auth/config';
 import { createDb } from '../db/client';
 import { createConsoleEmail } from './email/console';
+import { createResendEmail } from './email/resend';
 import { createFakeLlm } from './llm/fake';
 import { createOpenAICompatLlm } from './llm/openai-compat';
 import { createFakeEmbedding } from './embedding/fake';
@@ -138,10 +139,22 @@ function selectStorage(env: Env): StorageProvider {
   }
 }
 
-function selectEmail(_env: Env): EmailProvider {
-  // Phase 8 ships the console fake only. Phase 10 adds an EMAIL_PROVIDER
-  // env switch + ResendEmailProvider / SmtpEmailProvider.
-  return createConsoleEmail();
+function selectEmail(env: Env): EmailProvider {
+  switch (env.EMAIL_PROVIDER) {
+    case 'resend': {
+      // Env schema's superRefine guarantees these when provider === 'resend',
+      // but narrow explicitly so the adapter's config type stays required-only.
+      if (!env.RESEND_API_KEY || !env.RESEND_FROM) {
+        throw new Error(
+          'EMAIL_PROVIDER=resend requires RESEND_API_KEY and RESEND_FROM',
+        );
+      }
+      return createResendEmail({ apiKey: env.RESEND_API_KEY, from: env.RESEND_FROM });
+    }
+    case 'console':
+    default:
+      return createConsoleEmail();
+  }
 }
 
 export function createProviders(env: Env): Providers {

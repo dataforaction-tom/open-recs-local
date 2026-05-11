@@ -37,6 +37,12 @@ const providerSelectors = {
   MISTRAL_API_KEY: z.string().optional(),
   MISTRAL_BASE_URL: z.string().url().optional(),
   STORAGE_PROVIDER: z.enum(['fs', 's3', 'fake']).default('fake'),
+  // Email provider for password resets / magic links. Defaults to the console
+  // fake so local-mode boots zero-config; `resend` requires RESEND_API_KEY
+  // and RESEND_FROM (cross-field refinement below).
+  EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM: z.string().email().optional(),
 };
 
 // 32 chars of zeros isn't a real secret — it's only there so signed-URL
@@ -118,6 +124,23 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['MISTRAL_API_KEY'],
         message: 'MISTRAL_API_KEY is required when OCR_PROVIDER=mistral',
+      });
+    }
+  })
+  .superRefine((env, ctx) => {
+    if (env.EMAIL_PROVIDER !== 'resend') return;
+    if (!env.RESEND_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['RESEND_API_KEY'],
+        message: 'RESEND_API_KEY is required when EMAIL_PROVIDER=resend',
+      });
+    }
+    if (!env.RESEND_FROM) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['RESEND_FROM'],
+        message: 'RESEND_FROM is required when EMAIL_PROVIDER=resend',
       });
     }
   });

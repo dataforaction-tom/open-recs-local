@@ -43,4 +43,43 @@ describe('loadEnv', () => {
     expect(env.LLM_BASE_URL).toBeUndefined();
     expect(env.EMBEDDING_BASE_URL).toBeUndefined();
   });
+
+  it('defaults EMAIL_PROVIDER to console', () => {
+    const env = loadEnv({ APP_MODE: 'local', DATABASE_URL: 'postgres://x/y' });
+    expect(env.EMAIL_PROVIDER).toBe('console');
+  });
+
+  it('rejects EMAIL_PROVIDER=resend without RESEND_API_KEY', () => {
+    expect(() =>
+      loadEnv({
+        APP_MODE: 'local',
+        DATABASE_URL: 'postgres://x/y',
+        EMAIL_PROVIDER: 'resend',
+        RESEND_FROM: 'noreply@app.test',
+      }),
+    ).toThrow(/RESEND_API_KEY/);
+  });
+
+  it('rejects EMAIL_PROVIDER=resend without RESEND_FROM', () => {
+    expect(() =>
+      loadEnv({
+        APP_MODE: 'local',
+        DATABASE_URL: 'postgres://x/y',
+        EMAIL_PROVIDER: 'resend',
+        RESEND_API_KEY: 're_key',
+      }),
+    ).toThrow(/RESEND_FROM/);
+  });
+
+  it('accepts EMAIL_PROVIDER=resend with both required vars', () => {
+    const env = loadEnv({
+      APP_MODE: 'local',
+      DATABASE_URL: 'postgres://x/y',
+      EMAIL_PROVIDER: 'resend',
+      RESEND_API_KEY: 're_key',
+      RESEND_FROM: 'noreply@app.test',
+    });
+    expect(env.EMAIL_PROVIDER).toBe('resend');
+    expect(env.RESEND_API_KEY).toBe('re_key');
+  });
 });
