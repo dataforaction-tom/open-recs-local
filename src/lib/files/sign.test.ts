@@ -27,7 +27,10 @@ describe('signFileToken / verifyFileToken', () => {
   it('returns null when the signature is tampered with', () => {
     const token = signFileToken(SECRET, { key: 'src/abc/page-1.png' });
     const [payload, signature] = token.split('.');
-    const tampered = `${payload}.${signature!.slice(0, -1)}A`;
+    // HMAC base64url signatures sometimes end in 'A' — flip to 'B' in that
+    // case so the "tampered" suffix is genuinely different.
+    const tamperedSig = signature!.slice(0, -1) + (signature!.endsWith('A') ? 'B' : 'A');
+    const tampered = `${payload}.${tamperedSig}`;
     expect(verifyFileToken(SECRET, tampered)).toBeNull();
   });
 
