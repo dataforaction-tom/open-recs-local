@@ -16,10 +16,10 @@ stateDiagram-v2
     Phase6 --> Phase7: recommendations UI merged
     Phase7 --> Phase8: progress updates merged
     Phase8 --> Phase9: hosted-mode auth merged
-    Phase9 --> PhaseN: analytics
-    PhaseN --> Live: 1.0 release
+    Phase9 --> Phase10: analytics merged
+    Phase10 --> Live: 1.0 release
 
-    note right of Phase9: ← WE ARE HERE
+    note right of Phase10: ← WE ARE HERE
 ```
 
 - **Phase 0** ✅ merged (PR #1) — Next.js 16 + Postgres compose, CI green, MIT license.
@@ -32,8 +32,9 @@ stateDiagram-v2
 - **Phase 5** ✅ merged (PR #8) — `/sources/[slug]` split-pane viewer with synced scroll via IntersectionObserver, HMAC-signed `/api/files/[token]` route + `signFileToken/verifyFileToken` helpers, image-rewrite rehype plugin, `useScrollSync` hook, `getSourceWithPagesBySlug` repo helper.
 - **Phase 6** ✅ merged (PR #9) — `/recommendations` index (TanStack Table, URL-driven filters, hybrid/keyword toggle), `/recommendations/[id]` detail with shadcn Tabs (Overview / Similar / Progress), `findRecommendationById` + `findSimilarRecommendations` + `listRecentRecommendations` repo helpers, `<FilterChips>`, `useSearchParamsState` hook.
 - **Phase 7** ✅ — progress updates: `<ProgressUpdateForm>` (RHF + Zod), `<ProgressUpdatesList>`, `<StatusBadge>` + `<StatusTransitionControl>` on the detail page, `<EditableSelectCell>` + Status column on the index table; `getLatestStatuses` SQL helper, `createProgressUpdate` + `listProgressUpdates` + `appendStatus` repos, server actions + shared Zod schemas.
-- **Phase 8** 🔧 in flight — hosted mode: Better-auth (email+password + magic link) wired via `BetterAuthProvider` behind the existing `AuthContext`; new `users` / `sessions` / `accounts` / `verifications` / `user_roles` schema with FKs on the existing nullable user-ref columns; `EmailProvider` interface + console-logger fake; first-signup-becomes-admin bootstrap; `/signup` / `/login` / `/magic-link` / `/forgot-password` / `/reset-password` / `/profile` pages; ownership-request flow on `/sources/[slug]` + admin queue at `/admin`; `<RoleTable>` + role-assignment.
-- **Phase 9** ⏳ — analytics (Chart.js + scheduled `analytics.refresh` job).
+- **Phase 8** ✅ — hosted mode: Better-auth (email+password + magic link) wired via `BetterAuthProvider` behind the existing `AuthContext`; new `users` / `sessions` / `accounts` / `verifications` / `user_roles` schema with FKs on the existing nullable user-ref columns; `EmailProvider` interface + console-logger fake; first-signup-becomes-admin bootstrap; `/signup` / `/login` / `/magic-link` / `/forgot-password` / `/reset-password` / `/profile` pages; ownership-request flow on `/sources/[slug]` + admin queue at `/admin`; `<RoleTable>` + role-assignment.
+- **Phase 9** 🔧 in flight — analytics: `analyticsCache` repo + `analytics-sql.ts` (recs-per-status / recs-per-theme / progress cadence / source timeline); `analytics` service (`getOrCompute` + `computeAll`); `analytics.refresh` pg-boss handler scheduled at 02:00 daily; four Chart.js components (donut / bar / 2× line); `/analytics` global page (admin-only in hosted mode) and `/sources/[slug]/analytics` per-source page.
+- **Phase 10** ⏳ — polish + docs + 1.0 release.
 
 ## Component Status
 
@@ -65,6 +66,7 @@ stateDiagram-v2
 | NetworkViz / chat UI | ⏳ | Phase 9 (NetworkViz) / TBD (chat UI) |
 | Better-auth / hosted mode | ✅ | Phase 8 — `BetterAuthProvider`, auth pages, ownership requests, /admin |
 | Email provider | 🔧 | console-logger fake only; Resend/SMTP land in Phase 10 |
+| Analytics | ✅ | Phase 9 — Chart.js dashboards at `/analytics` (global) and `/sources/[slug]/analytics`; `analytics.refresh` cron at 02:00 + on-demand miss-backfill |
 
 ## Dependencies
 

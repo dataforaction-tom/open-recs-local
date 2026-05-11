@@ -6,7 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-Nothing yet — Phase 9 (analytics) is up next.
+Nothing yet — Phase 10 (polish + docs + 1.0 release) is up next.
+
+## 2026-05-11 — Phase 9: Analytics
+
+### Added
+
+- **Analytics dashboard.** `/analytics` shows four charts at a glance: recommendations by status (donut), recommendations by thematic area (bar), progress updates per month (12-month line), and sources published per month (12-month line).
+- **Per-source analytics.** `/sources/<slug>/analytics` scopes the status distribution and progress cadence charts to a single source. Linked from the source viewer header.
+- **Nightly cache refresh.** A new `analytics.refresh` pg-boss job runs at 02:00 server time daily, recomputing every cached aggregate so the dashboards stay fresh. First visit after a deploy still works — missing cache keys are computed on demand and stored transparently.
+- **Aggregate visibility respects auth.** Anonymous users count only public sources; signed-in users also count their own private sources; admins / system see everything. The cron runs under a system context for accurate global counts.
+
+### Notes
+
+- **Hosted mode: `/analytics` is admin-only** (404 for non-admins). Local mode opens it to everyone.
+- **Per-source analytics requires the viewer to be able to see the source.** Same gate as the source viewer.
+- **Refresh schedule is fixed at 02:00 server time** for now. If you self-host in another timezone, restart the worker after the local-time window to suit (an `ANALYTICS_REFRESH_CRON` env var is on the Phase 10 list).
 
 ## 2026-05-11 — Phase 8: Hosted-mode auth, ownership, admin
 

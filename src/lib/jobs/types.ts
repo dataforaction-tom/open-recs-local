@@ -11,6 +11,9 @@ export type QueuePayloads = {
   'source.parse': { sourceId: string };
   'source.extract': { sourceId: string };
   'source.embed': { sourceId: string };
+  // Phase 9 scheduled job: refresh the analytics_cache rows.
+  // No payload — the handler walks every cache key.
+  'analytics.refresh': Record<string, never>;
   'test.echo': { msg: string };
 };
 
