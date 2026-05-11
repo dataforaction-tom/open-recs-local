@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   flexRender,
@@ -10,6 +10,10 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table';
+import { REC_STATUS, type RecStatus } from '@/lib/db/schema';
+import type { StatusTransitionInputT } from '@/lib/validation/progress-update';
+import { EditableSelectCell } from './editable-select-cell';
+import { StatusBadge } from '@/components/progress/status-badge';
 
 export type RecommendationRow = {
   id: string;
@@ -17,9 +21,27 @@ export type RecommendationRow = {
   sourceSlug: string;
   sourceTitle: string;
   createdAt: Date;
+  latestStatus: RecStatus;
 };
 
-const COLUMNS: ColumnDef<RecommendationRow>[] = [
+export type StatusTransitionAction = (
+  input: StatusTransitionInputT,
+) => Promise<{ ok: true } | { ok: false; error: string }>;
+
+const STATUS_LABELS: Record<RecStatus, string> = {
+  open: 'Open',
+  in_progress: 'In progress',
+  done: 'Done',
+  blocked: 'Blocked',
+  withdrawn: 'Withdrawn',
+};
+
+const STATUS_OPTIONS = REC_STATUS.map((s) => ({ value: s, label: STATUS_LABELS[s] }));
+
+function buildColumns(
+  onTransition: StatusTransitionAction,
+): ColumnDef<RecommendationRow>[] {
+  return [
   {
     accessorKey: 'title',
     header: ({ column }) => (
@@ -53,6 +75,20 @@ const COLUMNS: ColumnDef<RecommendationRow>[] = [
     ),
   },
   {
+    accessorKey: 'latestStatus',
+    header: 'Status',
+    cell: ({ row }) => (
+      <EditableSelectCell<RecStatus>
+        value={row.original.latestStatus}
+        options={STATUS_OPTIONS}
+        onSubmit={(next) =>
+          onTransition({ recommendationId: row.original.id, status: next })
+        }
+        render={(value) => <StatusBadge status={value} />}
+      />
+    ),
+  },
+  {
     accessorKey: 'createdAt',
     header: ({ column }) => (
       <button
@@ -69,14 +105,21 @@ const COLUMNS: ColumnDef<RecommendationRow>[] = [
       </span>
     ),
   },
-];
+  ];
+}
 
-export function RecommendationsTable({ rows }: { rows: RecommendationRow[] }) {
+type Props = {
+  rows: RecommendationRow[];
+  onStatusTransition: StatusTransitionAction;
+};
+
+export function RecommendationsTable({ rows, onStatusTransition }: Props) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const columns = useMemo(() => buildColumns(onStatusTransition), [onStatusTransition]);
 
   const table = useReactTable({
     data: rows,
-    columns: COLUMNS,
+    columns,
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),

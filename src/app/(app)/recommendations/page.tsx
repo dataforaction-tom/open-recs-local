@@ -4,6 +4,7 @@ import { createDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { createProviders } from '@/lib/providers';
 import { listRecentRecommendations } from '@/lib/repositories/recommendation';
+import { getLatestStatuses } from '@/lib/repositories/recommendation-status';
 import { searchRecommendations } from '@/lib/services/search';
 import {
   RecommendationsTable,
@@ -11,6 +12,7 @@ import {
 } from '@/components/recommendations/recommendations-table';
 import { RecommendationsIndexControls } from '@/components/recommendations/recommendations-index-controls';
 import type { RepoContext } from '@/lib/repositories/types';
+import { transitionStatus } from './[id]/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +58,8 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
     if (args.source) filters.sourceId = args.source;
     if (args.theme) filters.thematicAreaId = args.theme;
 
-    let rows: RecommendationRow[] = [];
+    type RowWithoutStatus = Omit<RecommendationRow, 'latestStatus'>;
+    let baseRows: RowWithoutStatus[] = [];
 
     if (trimmedQ.length >= 2) {
       const mode = args.mode ?? 'hybrid';
@@ -70,7 +73,7 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
         },
         mode === 'hybrid' ? { embedding: providers.embedding } : {},
       );
-      rows = hits.map((hit) => ({
+      baseRows = hits.map((hit) => ({
         id: hit.id,
         title: hit.title,
         sourceSlug: hit.sourceSlug,
@@ -79,7 +82,7 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
       }));
     } else {
       const recent = await listRecentRecommendations(ctx, { limit, filters });
-      rows = recent.map((r) => ({
+      baseRows = recent.map((r) => ({
         id: r.id,
         title: r.title,
         sourceSlug: r.sourceSlug,
@@ -87,6 +90,15 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
         createdAt: r.createdAt,
       }));
     }
+
+    const statusMap = await getLatestStatuses(
+      ctx,
+      baseRows.map((r) => r.id),
+    );
+    const rows: RecommendationRow[] = baseRows.map((r) => ({
+      ...r,
+      latestStatus: statusMap.get(r.id)?.status ?? 'open',
+    }));
 
     return (
       <div className="space-y-6">
@@ -97,7 +109,7 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
           </p>
         </header>
         <RecommendationsIndexControls />
-        <RecommendationsTable rows={rows} />
+        <RecommendationsTable rows={rows} onStatusTransition={transitionStatus} />
       </div>
     );
   } finally {
