@@ -87,7 +87,6 @@ stateDiagram-v2
 - IntersectionObserver wiring + continuous-scroll PDF render are now in place — markdown ↔ PDF scroll sync is fully plumbed. Tune the debounce or scroll behaviour in Phase 10 polish if the UX feels off in QA.
 - Mobile layout for the source viewer is desktop-first only (split-pane assumes width). Add a stacked-pane mode below `md:` in Phase 10.
 - Markdown renderer uses `prose` Tailwind classes, but `@tailwindcss/typography` isn't actually installed — those classes silently no-op. If markdown looks unstyled, install the plugin or hand-author rules.
-- The recommendations index renders hybrid/keyword search results without the human-readable source title (the search service's RrfRow only carries sourceSlug). Phase 7 should extend the search service to join sourceTitle, or accept the slug as the visible label.
 - The recommendations table omits the current-status column. Phase 7 wires the latest-status lateral join + EditableSelectCell.
 - NetworkViz (canvas force-directed graph) is deferred from Phase 6 to Phase 9 with the analytics canvas tooling.
 

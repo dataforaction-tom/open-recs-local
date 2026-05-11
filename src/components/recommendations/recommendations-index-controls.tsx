@@ -11,6 +11,16 @@ export function RecommendationsIndexControls() {
   const [state, setState] = useSearchParamsState<typeof DEFAULTS>(DEFAULTS);
   const [draft, setDraft] = useState(state.q);
 
+  // Re-sync the input when the URL's q changes from outside (back/forward,
+  // shared link, chip-clear). React's "store info from previous renders"
+  // pattern — https://react.dev/reference/react/useState — avoids a
+  // setState-in-effect (which the React Compiler rule blocks).
+  const [lastSyncedQ, setLastSyncedQ] = useState(state.q);
+  if (state.q !== lastSyncedQ) {
+    setLastSyncedQ(state.q);
+    setDraft(state.q);
+  }
+
   const active: ActiveFilter[] = [];
   if (state.q.length > 0) active.push({ key: 'q', label: 'Search', value: state.q });
   if (state.mode !== DEFAULTS.mode) {
