@@ -3,7 +3,7 @@ import { startPostgres, type StartedPg } from '../../../tests/helpers/pg-contain
 import { applyMigrations } from '../../../tests/helpers/migrate';
 import { createDb, type Db, type DbClient } from '../db/client';
 import { seedUser } from '../../../tests/helpers/seed-user';
-import { assignRole, getRoles, listUsersWithRoles, revokeRole } from './user-role';
+import { assignRole, getRoles, listUsersWithRoles, revokeRole, setUserRole } from './user-role';
 import { AuthorizationError, type RepoContext } from './types';
 
 let pg: StartedPg;
@@ -81,6 +81,25 @@ describe('assignRole / revokeRole', () => {
     await assignRole(ctxSystem(client.db), id, 'editor');
     await assignRole(ctxSystem(client.db), id, 'editor');
     expect(await getRoles(ctxSystem(client.db), id)).toEqual(['editor']);
+  });
+});
+
+describe('setUserRole', () => {
+  it('replaces all of a user\'s roles with the supplied one', async () => {
+    const id = await seedUser(client.db);
+    await assignRole(ctxSystem(client.db), id, 'admin');
+    await assignRole(ctxSystem(client.db), id, 'editor');
+    await setUserRole(ctxSystem(client.db), id, 'viewer');
+    expect(await getRoles(ctxSystem(client.db), id)).toEqual(['viewer']);
+  });
+
+  it('rejects non-admin callers', async () => {
+    const targetId = await seedUser(client.db);
+    const viewerId = await seedUser(client.db);
+    await assignRole(ctxSystem(client.db), viewerId, 'viewer');
+    await expect(
+      setUserRole(ctxViewer(client.db, viewerId), targetId, 'editor'),
+    ).rejects.toBeInstanceOf(AuthorizationError);
   });
 });
 

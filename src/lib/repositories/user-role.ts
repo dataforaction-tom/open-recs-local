@@ -37,6 +37,25 @@ export async function assignRole(
     .onConflictDoNothing({ target: [userRoles.userId, userRoles.role] });
 }
 
+/**
+ * Admin-only — replace the user's entire role set with a single role. The
+ * admin UI uses this so each user has exactly one effective role at a time;
+ * the underlying repo still supports multiple roles via `assignRole` for
+ * programmatic callers that want it.
+ */
+export async function setUserRole(
+  ctx: RepoContext,
+  userId: string,
+  role: Role,
+): Promise<void> {
+  if (!isAdmin(ctx)) throw new AuthorizationError('only admins can set user roles');
+  if (!UUID_RE.test(userId)) throw new Error('invalid user id');
+  await ctx.db.transaction(async (tx) => {
+    await tx.delete(userRoles).where(eq(userRoles.userId, userId));
+    await tx.insert(userRoles).values({ userId, role });
+  });
+}
+
 /** Admin-only — revoke a single role. No-op if the user didn't have it. */
 export async function revokeRole(
   ctx: RepoContext,
