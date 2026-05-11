@@ -36,6 +36,18 @@ export function EditableSelectCell<V extends string>({
   render,
 }: Props<V>) {
   const [optimistic, setOptimistic] = useState<V>(value);
+  // Re-sync to the incoming `value` when the parent re-renders with a new
+  // prop (e.g. after a server refresh, a filter change that swaps the row
+  // bound to this cell instance, or a successful action revalidating the
+  // page). Without this, optimistic state shadows the new authoritative
+  // value and the user sees stale data. React's "store info from previous
+  // renders" pattern — https://react.dev/reference/react/useState — keeps
+  // this out of useEffect, which the React Compiler ESLint rule blocks.
+  const [lastSyncedValue, setLastSyncedValue] = useState<V>(value);
+  if (value !== lastSyncedValue) {
+    setLastSyncedValue(value);
+    setOptimistic(value);
+  }
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
 

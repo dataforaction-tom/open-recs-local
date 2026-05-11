@@ -55,4 +55,17 @@ describe('<EditableSelectCell>', () => {
     );
     expect(screen.getByTestId('custom')).toHaveTextContent('[[done]]');
   });
+
+  it('re-syncs the displayed value when the value prop changes', () => {
+    const { rerender } = render(
+      <EditableSelectCell value="open" options={OPTIONS} onSubmit={vi.fn()} />,
+    );
+    expect(screen.getByText('Open')).toBeInTheDocument();
+
+    rerender(
+      <EditableSelectCell value="done" options={OPTIONS} onSubmit={vi.fn()} />,
+    );
+    expect(screen.getByText('Done')).toBeInTheDocument();
+    expect(screen.queryByText('Open')).not.toBeInTheDocument();
+  });
 });
