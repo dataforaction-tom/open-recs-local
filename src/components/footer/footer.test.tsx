@@ -3,10 +3,10 @@ import { render, screen } from '@testing-library/react';
 import { Footer } from './footer';
 
 describe('Footer', () => {
-  it('renders an open-recs-local copyright + GitHub link', () => {
+  it('renders the publication tagline + a Source repo link', () => {
     render(<Footer />);
-    expect(screen.getByText(/open-recs-local/i)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /github/i })).toHaveAttribute(
+    expect(screen.getByText(/open recommendations/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /source/i })).toHaveAttribute(
       'href',
       expect.stringContaining('github.com/dataforaction-tom/open-recs-local'),
     );

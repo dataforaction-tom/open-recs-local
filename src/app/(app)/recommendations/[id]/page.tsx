@@ -50,7 +50,7 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
     const currentStatus = latestStatus?.status ?? 'open';
 
     return (
-      <div className="space-y-8">
+      <div className="space-y-10">
         <RecommendationDetailHeader
           title={rec.title}
           body={rec.body}
@@ -58,22 +58,27 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
           sourceTitle={rec.sourceTitle}
           pageAnchor={rec.pageAnchor}
         />
+
         <Tabs defaultValue="overview">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="similar">Similar</TabsTrigger>
             <TabsTrigger value="progress">Progress</TabsTrigger>
           </TabsList>
-          <TabsContent value="overview" className="pt-4">
-            <p className="text-sm text-muted-foreground">
-              Overview metadata will expand here as later phases land — page anchor link, thematic
-              tags, status timeline, ownership badges.
+
+          <TabsContent value="overview" className="space-y-4 pt-6">
+            <p className="max-w-[58rem] font-serif text-base italic leading-relaxed text-muted-foreground">
+              More metadata will land here in later passes — thematic tags, status timeline,
+              ownership badges. For now, the full text appears above; everything else lives
+              in the other tabs.
             </p>
           </TabsContent>
-          <TabsContent value="similar" className="pt-4">
+
+          <TabsContent value="similar" className="pt-6">
             <SimilarRecommendations rows={similar} />
           </TabsContent>
-          <TabsContent value="progress" className="space-y-6 pt-4">
+
+          <TabsContent value="progress" className="space-y-8 pt-6">
             <StatusTransitionControl
               recommendationId={id}
               current={currentStatus}

@@ -6,7 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-Nothing yet — Phase 10 (polish + docs + 1.0 release) is up next.
+Phase 10b (Playwright E2E + CI matrix + 1.0 release) is in flight.
+
+## 2026-05-11 — Phase 10a: Email, typography, mobile, docs
+
+### Added
+
+- **Real email delivery.** Set `EMAIL_PROVIDER=resend` plus `RESEND_API_KEY` and `RESEND_FROM` in hosted mode and password-reset / magic-link emails go through Resend. The console-logger fake stays as the default so local mode boots zero-config.
+- **Readable markdown bodies.** `@tailwindcss/typography` is now installed and registered, so the `prose` classes on source viewer and recommendation detail bodies actually style headings, lists, links, and code blocks.
+- **Mobile source viewer.** `/sources/<slug>` now uses a stacked layout below the `md:` breakpoint (768px) — the markdown and PDF panes scroll independently with no resizer. Above the breakpoint, the resizable split-pane layout is unchanged.
+- **Walkthrough docs.** `docs/running-locally.md` covers the three deployment paths end-to-end: Mac mini (native Ollama + Docling container), Linux (everything in containers, with NVIDIA GPU notes), and hosted mode (Better-auth + Resend + first-admin bootstrap).
+- **README pass.** Screenshot slots reserved in `docs/screenshots/`; project-status block updated to reflect what's actually shipped (phases 0-9 done); hosted-mode section now points at the new Resend env vars.
+
+### Notes
+
+- Screenshots are placeholder paths until captured against a running stack — `docs/screenshots/README.md` documents what each shot should show.
+- SMTP backend still TODO; pair-write with Resend if anyone needs SMTP.
 
 ## 2026-05-11 — Phase 9: Analytics
 

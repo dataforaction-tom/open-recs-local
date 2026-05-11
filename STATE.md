@@ -33,8 +33,9 @@ stateDiagram-v2
 - **Phase 6** ✅ merged (PR #9) — `/recommendations` index (TanStack Table, URL-driven filters, hybrid/keyword toggle), `/recommendations/[id]` detail with shadcn Tabs (Overview / Similar / Progress), `findRecommendationById` + `findSimilarRecommendations` + `listRecentRecommendations` repo helpers, `<FilterChips>`, `useSearchParamsState` hook.
 - **Phase 7** ✅ — progress updates: `<ProgressUpdateForm>` (RHF + Zod), `<ProgressUpdatesList>`, `<StatusBadge>` + `<StatusTransitionControl>` on the detail page, `<EditableSelectCell>` + Status column on the index table; `getLatestStatuses` SQL helper, `createProgressUpdate` + `listProgressUpdates` + `appendStatus` repos, server actions + shared Zod schemas.
 - **Phase 8** ✅ — hosted mode: Better-auth (email+password + magic link) wired via `BetterAuthProvider` behind the existing `AuthContext`; new `users` / `sessions` / `accounts` / `verifications` / `user_roles` schema with FKs on the existing nullable user-ref columns; `EmailProvider` interface + console-logger fake; first-signup-becomes-admin bootstrap; `/signup` / `/login` / `/magic-link` / `/forgot-password` / `/reset-password` / `/profile` pages; ownership-request flow on `/sources/[slug]` + admin queue at `/admin`; `<RoleTable>` + role-assignment.
-- **Phase 9** 🔧 in flight — analytics: `analyticsCache` repo + `analytics-sql.ts` (recs-per-status / recs-per-theme / progress cadence / source timeline); `analytics` service (`getOrCompute` + `computeAll`); `analytics.refresh` pg-boss handler scheduled at 02:00 daily; four Chart.js components (donut / bar / 2× line); `/analytics` global page (admin-only in hosted mode) and `/sources/[slug]/analytics` per-source page.
-- **Phase 10** ⏳ — polish + docs + 1.0 release.
+- **Phase 9** ✅ — analytics: `analyticsCache` repo + `analytics-sql.ts` (recs-per-status / recs-per-theme / progress cadence / source timeline); `analytics` service (`getOrCompute` + `computeAll`); `analytics.refresh` pg-boss handler scheduled at 02:00 daily; four Chart.js components (donut / bar / 2× line); `/analytics` global page (admin-only in hosted mode) and `/sources/[slug]/analytics` per-source page.
+- **Phase 10a** 🔧 in flight — polish: Resend email backend behind `EMAIL_PROVIDER=resend`, `@tailwindcss/typography` (closes Phase-5 carry-over), stacked `<SourceViewer>` below `md:` breakpoint, `docs/running-locally.md`, README screenshots + dual-mode explanation, `.env.example` updates.
+- **Phase 10b** ⏳ — Playwright E2E + CI matrix + 1.0 version bump + tag.
 
 ## Component Status
 
@@ -65,7 +66,9 @@ stateDiagram-v2
 | Progress updates UI | ✅ | Form + list + status transitions on the detail page; Phase 7 |
 | NetworkViz / chat UI | ⏳ | Phase 9 (NetworkViz) / TBD (chat UI) |
 | Better-auth / hosted mode | ✅ | Phase 8 — `BetterAuthProvider`, auth pages, ownership requests, /admin |
-| Email provider | 🔧 | console-logger fake only; Resend/SMTP land in Phase 10 |
+| Email provider | ✅ | Resend behind `EMAIL_PROVIDER=resend`; console-logger fake is the default for local-mode |
+| Markdown typography | ✅ | `@tailwindcss/typography` plugin registered (Phase 10a) |
+| Mobile source viewer | ✅ | Stacked below `md:` breakpoint via `useMediaQuery` (Phase 10a) |
 | Analytics | ✅ | Phase 9 — Chart.js dashboards at `/analytics` (global) and `/sources/[slug]/analytics`; `analytics.refresh` cron at 02:00 + on-demand miss-backfill |
 
 ## Dependencies
@@ -92,10 +95,10 @@ stateDiagram-v2
 - shadcn `components.json` chose `base-nova` preset (Base UI primitives, not Radix). If Radix becomes preferable later, swap via re-init.
 - `/api/files/[token]` tokens last 5 minutes by default; pages re-mint on reload but can't refresh in-place. Polish to Phase 10.
 - IntersectionObserver wiring + continuous-scroll PDF render are now in place — markdown ↔ PDF scroll sync is fully plumbed. Tune the debounce or scroll behaviour in Phase 10 polish if the UX feels off in QA.
-- Mobile layout for the source viewer is desktop-first only (split-pane assumes width). Add a stacked-pane mode below `md:` in Phase 10.
-- Markdown renderer uses `prose` Tailwind classes, but `@tailwindcss/typography` isn't actually installed — those classes silently no-op. If markdown looks unstyled, install the plugin or hand-author rules.
+- ~~Mobile layout for the source viewer is desktop-first only~~ — resolved in Phase 10a: stacked layout below `md:` via new `useMediaQuery` hook.
+- ~~Markdown renderer uses `prose` Tailwind classes, but `@tailwindcss/typography` isn't actually installed~~ — resolved in Phase 10a (`@plugin "@tailwindcss/typography"` in `globals.css`).
 - ~~The recommendations table omits the current-status column~~ — resolved in Phase 7 via `getLatestStatuses` + `<EditableSelectCell>`.
-- **Email delivery is stub-only.** The `EmailProvider` ships with a console-logger fake; reset / magic-link URLs go to stdout. Phase 10 adds `ResendEmailProvider` / `SmtpEmailProvider` behind an `EMAIL_PROVIDER` env switch.
+- ~~**Email delivery is stub-only.**~~ — resolved in Phase 10a: Resend backend lives behind `EMAIL_PROVIDER=resend`. SMTP is still TODO; pair-write with Resend if/when an SMTP user appears.
 - **OAuth providers (Google/GitHub) are not wired.** Better-auth supports them; opt in if/when there's user demand.
 - **No 2FA, no account deletion / GDPR data export, no audit log of admin actions.** Phase 10 polish or 1.x.
 - **Browser-level Playwright E2E for the auth flow is deferred to Phase 10.** Phase 8 ships an integration test (`tests/hosted-mode.smoke.test.ts`) that composes the same pieces a browser test would exercise.

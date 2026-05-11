@@ -10,7 +10,6 @@ import {
   getSourceRecsPerStatus,
 } from '@/lib/services/analytics';
 import type { RepoContext } from '@/lib/repositories/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusDonut } from '@/components/analytics/status-donut';
 import { CadenceLine } from '@/components/analytics/cadence-line';
 
@@ -33,9 +32,6 @@ export default async function SourceAnalyticsPage({ params }: PageProps) {
     const auth = await providers.auth.getContext(req);
     const ctx: RepoContext = { db: client.db, auth };
 
-    // Reuse the same visibility check the source page uses. Anonymous on a
-    // private source → 404 (no leak); private + signed-in non-owner → 404
-    // here too (analytics is owner/admin material). Visible → render.
     const access = await describeSourceAccess(ctx, slug);
     if (access.kind !== 'visible') notFound();
 
@@ -45,32 +41,35 @@ export default async function SourceAnalyticsPage({ params }: PageProps) {
     ]);
 
     return (
-      <div className="space-y-6">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Source analytics</h1>
-          <p className="text-sm text-muted-foreground">
-            <Link href={`/sources/${slug}`} className="underline hover:text-foreground">
+      <div className="space-y-10">
+        <header className="space-y-3">
+          <div className="section-num">Source · Analytics</div>
+          <h1 className="text-4xl tracking-tight">A short reading of one source</h1>
+          <p>
+            <Link
+              href={`/sources/${slug}`}
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-accent hover:underline"
+            >
               ← Back to source
             </Link>
           </p>
         </header>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recommendations by status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StatusDonut rows={status} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Progress updates per month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CadenceLine rows={cadence} />
-            </CardContent>
-          </Card>
+
+        <div className="grid grid-cols-1 gap-x-10 gap-y-10 md:grid-cols-2">
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+              <h2 className="text-sm font-medium">Recommendations by status</h2>
+            </div>
+            <StatusDonut rows={status} />
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+              <h2 className="text-sm font-medium">Progress updates per month</h2>
+              <span className="text-sm text-muted-foreground">12-month window</span>
+            </div>
+            <CadenceLine rows={cadence} />
+          </section>
         </div>
       </div>
     );

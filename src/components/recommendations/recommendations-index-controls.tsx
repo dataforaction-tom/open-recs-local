@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useSearchParamsState } from '@/lib/hooks/use-search-params-state';
 import { FilterChips, type ActiveFilter } from './filter-chips';
 
@@ -13,8 +14,7 @@ export function RecommendationsIndexControls() {
 
   // Re-sync the input when the URL's q changes from outside (back/forward,
   // shared link, chip-clear). React's "store info from previous renders"
-  // pattern — https://react.dev/reference/react/useState — avoids a
-  // setState-in-effect (which the React Compiler rule blocks).
+  // pattern avoids the React Compiler's setState-in-effect ban.
   const [lastSyncedQ, setLastSyncedQ] = useState(state.q);
   if (state.q !== lastSyncedQ) {
     setLastSyncedQ(state.q);
@@ -28,33 +28,35 @@ export function RecommendationsIndexControls() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <form
-        className="flex items-center gap-2"
+        className="grid grid-cols-1 items-end gap-3 sm:grid-cols-[1fr_auto_auto]"
         onSubmit={(e) => {
           e.preventDefault();
           setState({ q: draft });
         }}
       >
-        <input
-          type="search"
-          placeholder="Search recommendations…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          className="h-9 flex-1 rounded-md border border-border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-          aria-label="Search recommendations"
-        />
-        <Button type="submit" size="sm">
+        <label className="space-y-1.5">
+          <span className="text-sm text-muted-foreground">Search</span>
+          <Input
+            type="search"
+            placeholder="e.g. governance · safeguarding · audit rotation"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            aria-label="Search recommendations"
+          />
+        </label>
+        <Button type="submit" size="default" variant="outline">
           Search
         </Button>
         <Button
           type="button"
           variant={state.mode === 'hybrid' ? 'default' : 'outline'}
-          size="sm"
+          size="default"
           onClick={() => setState({ mode: state.mode === 'hybrid' ? 'keyword' : 'hybrid' })}
           aria-label={`Toggle search mode (current: ${state.mode})`}
         >
-          {state.mode === 'hybrid' ? 'Hybrid' : 'Keyword'}
+          {state.mode === 'hybrid' ? 'Hybrid mode' : 'Keyword mode'}
         </Button>
       </form>
       <FilterChips

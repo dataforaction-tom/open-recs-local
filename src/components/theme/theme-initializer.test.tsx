@@ -1,18 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { renderToStaticMarkup } from 'react-dom/server';
-import { ThemeInitializer } from './theme-initializer';
+import { INIT_SCRIPT } from './theme-initializer';
 
-describe('ThemeInitializer', () => {
-  it('emits an inline script that adds the dark class when stored theme is dark', () => {
-    const html = renderToStaticMarkup(<ThemeInitializer />);
-    expect(html).toContain('<script');
-    expect(html).toContain("localStorage.getItem('theme')");
-    expect(html).toContain("'dark'");
-    expect(html).toContain('classList.add');
+describe('ThemeInitializer / INIT_SCRIPT', () => {
+  it('reads the persisted theme from localStorage', () => {
+    expect(INIT_SCRIPT).toContain("localStorage.getItem('theme')");
   });
 
-  it('handles the system fallback via prefers-color-scheme', () => {
-    const html = renderToStaticMarkup(<ThemeInitializer />);
-    expect(html).toContain('prefers-color-scheme');
+  it('falls back to prefers-color-scheme: dark for the OS default', () => {
+    expect(INIT_SCRIPT).toContain('prefers-color-scheme: dark');
+  });
+
+  it("adds the 'dark' class when the resolved theme is dark", () => {
+    expect(INIT_SCRIPT).toContain('classList.add');
+    expect(INIT_SCRIPT).toContain("'dark'");
+  });
+
+  it('wraps the body in a try/catch so a storage failure does not break boot', () => {
+    expect(INIT_SCRIPT).toContain('try');
+    expect(INIT_SCRIPT).toContain('catch');
   });
 });

@@ -55,7 +55,8 @@ describe('Recommendations index pieces (smoke)', () => {
       </div>,
     );
 
-    expect(screen.getByText('Search: auditor')).toBeInTheDocument();
+    expect(screen.getByText('Search:')).toBeInTheDocument();
+    expect(screen.getByText('auditor')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Rotate auditors' })).toHaveAttribute(
       'href',
       '/recommendations/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',

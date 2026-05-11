@@ -51,26 +51,32 @@ export function StatusTransitionControl({ recommendationId, current, note, actio
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <span className="text-sm text-muted-foreground">Current status</span>
-      {note ? (
-        <StatusBadge status={optimistic} title={note} />
-      ) : (
-        <StatusBadge status={optimistic} />
-      )}
-      <Select value={optimistic} onValueChange={onChange} disabled={isPending}>
-        <SelectTrigger size="sm" aria-label="Change status">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {REC_STATUS.map((s) => (
-            <SelectItem key={s} value={s}>
-              {LABELS[s]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {error && <span className="text-sm text-destructive" role="alert">{error}</span>}
-    </div>
+    <section className="border border-rule bg-accent-soft/30 p-5">
+      <div className="flex flex-wrap items-center gap-4">
+        <h3 className="text-sm font-medium">Status</h3>
+        {note ? (
+          <StatusBadge status={optimistic} title={note} />
+        ) : (
+          <StatusBadge status={optimistic} />
+        )}
+        <Select value={optimistic} onValueChange={onChange} disabled={isPending}>
+          <SelectTrigger size="sm" aria-label="Change status" className="bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {REC_STATUS.map((s) => (
+              <SelectItem key={s} value={s}>
+                {LABELS[s]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {error && (
+          <span className="text-sm text-destructive" role="alert">
+            {error}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }

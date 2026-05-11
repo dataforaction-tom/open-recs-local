@@ -1,7 +1,6 @@
 'use client';
 
 import { X } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 
 export type ActiveFilter = {
   key: string;
@@ -18,21 +17,24 @@ export function FilterChips({
 }) {
   if (active.length === 0) return null;
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="text-sm text-muted-foreground">Filters</span>
       {active.map((filter) => (
-        <Badge key={filter.key} variant="secondary" className="gap-1">
-          <span>
-            {filter.label}: {filter.value}
-          </span>
+        <span
+          key={filter.key}
+          className="inline-flex items-center gap-1.5 border border-rule px-2.5 py-1 text-sm"
+        >
+          <span className="text-muted-foreground">{filter.label}:</span>
+          <span>{filter.value}</span>
           <button
             type="button"
             aria-label={`Clear ${filter.label.toLowerCase()} filter`}
             onClick={() => onClear(filter.key)}
-            className="ml-1 rounded hover:bg-foreground/10"
+            className="ml-1 text-muted-foreground hover:text-destructive"
           >
-            <X className="h-3 w-3" />
+            <X className="h-3.5 w-3.5" />
           </button>
-        </Badge>
+        </span>
       ))}
     </div>
   );

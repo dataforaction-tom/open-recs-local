@@ -9,7 +9,12 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      # Host port 5434 so multiple local Postgres instances can coexist on
+      # the dev box (5432 and 5433 are commonly taken). In-network the
+      # service is still reachable as postgres:5432, so the app/worker
+      # DATABASE_URLs below are unchanged. Host-side connections
+      # (pnpm dev, db:migrate, db:seed) use 5434.
+      - "5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d openrecs"]
       interval: 5s

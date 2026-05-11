@@ -11,6 +11,9 @@ export type ThemeBarRow = {
   count: number;
 };
 
+const AXIS_COLOR = 'oklch(0.55 0.006 70)';
+const GRID_COLOR = 'oklch(0.92 0.004 80)';
+
 export function ThemeBar({ rows }: { rows: ThemeBarRow[] }) {
   if (rows.length === 0) return <EmptyChart label="No themed recommendations yet." />;
   const data = {
@@ -20,6 +23,7 @@ export function ThemeBar({ rows }: { rows: ThemeBarRow[] }) {
         data: rows.map((r) => r.count),
         backgroundColor: rows.map((r) => r.colorHex),
         borderWidth: 0,
+        borderRadius: 0,
       },
     ],
   };
@@ -32,7 +36,17 @@ export function ThemeBar({ rows }: { rows: ThemeBarRow[] }) {
           responsive: true,
           maintainAspectRatio: false,
           plugins: { legend: { display: false } },
-          scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: { precision: 0, color: AXIS_COLOR, font: { family: 'var(--font-sans)' } },
+              grid: { color: GRID_COLOR },
+            },
+            y: {
+              ticks: { color: AXIS_COLOR, font: { family: 'var(--font-sans)' } },
+              grid: { display: false },
+            },
+          },
         }}
       />
     </div>

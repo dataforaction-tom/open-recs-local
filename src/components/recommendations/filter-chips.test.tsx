@@ -19,8 +19,10 @@ describe('FilterChips', () => {
         onClear={vi.fn()}
       />,
     );
-    expect(screen.getByText('Search: auditor')).toBeInTheDocument();
-    expect(screen.getByText('Mode: keyword')).toBeInTheDocument();
+    expect(screen.getByText('Search:')).toBeInTheDocument();
+    expect(screen.getByText('auditor')).toBeInTheDocument();
+    expect(screen.getByText('Mode:')).toBeInTheDocument();
+    expect(screen.getByText('keyword')).toBeInTheDocument();
   });
 
   it('clicking a chip clear button calls onClear with the chip key', async () => {

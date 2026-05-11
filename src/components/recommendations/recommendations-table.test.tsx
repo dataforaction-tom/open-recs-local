@@ -61,7 +61,7 @@ describe('RecommendationsTable', () => {
 
   it('clicking the title header sorts the rows alphabetically', async () => {
     render(<RecommendationsTable rows={fixtureRows} onStatusTransition={noopAction} />);
-    const sortButton = screen.getByRole('button', { name: /title/i });
+    const sortButton = screen.getByRole('button', { name: /recommendation/i });
     const user = userEvent.setup();
     await user.click(sortButton);
 

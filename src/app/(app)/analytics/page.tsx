@@ -10,7 +10,6 @@ import {
   getGlobalSourceTimeline,
 } from '@/lib/services/analytics';
 import type { RepoContext } from '@/lib/repositories/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusDonut } from '@/components/analytics/status-donut';
 import { ThemeBar } from '@/components/analytics/theme-bar';
 import { CadenceLine } from '@/components/analytics/cadence-line';
@@ -45,47 +44,46 @@ export default async function AnalyticsPage() {
     ]);
 
     return (
-      <div className="space-y-6">
-        <header>
-          <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
-          <p className="text-sm text-muted-foreground">
-            Aggregates are refreshed nightly. First visit after a deploy may take a moment
-            while the cache warms.
+      <div className="space-y-12">
+        <header className="space-y-3">
+          <div className="section-num">04 · Analytics</div>
+          <h1 className="text-4xl tracking-tight">A daily reading of the collection</h1>
+          <p className="max-w-[42rem] font-serif text-lg italic leading-relaxed text-foreground/85">
+            Aggregates refresh nightly. The first visit after a deploy may take a
+            moment while the cache warms — subsequent loads are instant.
           </p>
         </header>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recommendations by status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StatusDonut rows={status} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Recommendations by thematic area</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ThemeBar rows={themes} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Progress updates per month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CadenceLine rows={cadence} />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Sources published per month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TimelineLine rows={timeline} />
-            </CardContent>
-          </Card>
+
+        <div className="grid grid-cols-1 gap-x-10 gap-y-12 md:grid-cols-2">
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+              <h2 className="text-sm font-medium">Recommendations by status</h2>
+            </div>
+            <StatusDonut rows={status} />
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+              <h2 className="text-sm font-medium">Recommendations by thematic area</h2>
+            </div>
+            <ThemeBar rows={themes} />
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+              <h2 className="text-sm font-medium">Progress updates per month</h2>
+              <span className="text-sm text-muted-foreground">12-month window</span>
+            </div>
+            <CadenceLine rows={cadence} />
+          </section>
+
+          <section className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+              <h2 className="text-sm font-medium">Sources published per month</h2>
+              <span className="text-sm text-muted-foreground">12-month window</span>
+            </div>
+            <TimelineLine rows={timeline} />
+          </section>
         </div>
       </div>
     );

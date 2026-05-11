@@ -2,16 +2,18 @@ import { Container } from '@/components/ui/container';
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-background py-6 text-sm text-muted-foreground">
-      <Container className="flex items-center justify-between">
-        <span>open-recs-local — local-first open recommendations</span>
+    <footer className="mt-16 border-t border-rule bg-background py-8">
+      <Container className="flex flex-wrap items-baseline justify-between gap-4">
+        <p className="font-serif text-sm italic text-muted-foreground">
+          open recommendations · a local-first instrument for inquiry reports.
+        </p>
         <a
           href="https://github.com/dataforaction-tom/open-recs-local"
-          className="hover:text-foreground"
+          className="text-sm text-muted-foreground underline underline-offset-4 hover:text-accent"
           target="_blank"
           rel="noopener noreferrer"
         >
-          GitHub
+          Source
         </a>
       </Container>
     </footer>
