@@ -6,10 +6,21 @@ import { Navigation } from './navigation';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard',
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
 }));
 
 vi.mock('next-themes', () => ({
   useTheme: () => ({ theme: 'light', setTheme: vi.fn() }),
+}));
+
+// UserMenu pulls in @/lib/auth/client which constructs a Better-auth react
+// client at module-load. The client wants window globals it doesn't see in
+// happy-dom; mock the surface UserMenu actually touches.
+vi.mock('@/lib/auth/client', () => ({
+  authClient: {
+    useSession: () => ({ data: null, isPending: false }),
+    signOut: vi.fn(),
+  },
 }));
 
 const local: PublicConfig = {

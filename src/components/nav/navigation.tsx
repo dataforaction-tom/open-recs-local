@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Container } from '@/components/ui/container';
 import { DarkModeToggle } from '@/components/theme/dark-mode-toggle';
 import { FeatureGate } from '@/components/feature-gate';
+import { UserMenu } from '@/components/nav/user-menu';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
@@ -60,7 +61,12 @@ export function Navigation() {
             </ul>
           </nav>
         </div>
-        <DarkModeToggle />
+        <div className="flex items-center gap-2">
+          <FeatureGate feature="auth">
+            <UserMenu />
+          </FeatureGate>
+          <DarkModeToggle />
+        </div>
       </Container>
     </header>
   );
