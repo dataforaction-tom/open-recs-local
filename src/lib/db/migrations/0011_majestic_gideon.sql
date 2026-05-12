@@ -1,0 +1,1 @@
+ALTER TABLE "thematic_areas" ALTER COLUMN "color_hex" DROP NOT NULL;

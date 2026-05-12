@@ -253,7 +253,9 @@ export const thematicAreas = pgTable('thematic_areas', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').notNull().unique(),
   name: text('name').notNull(),
-  colorHex: text('color_hex').notNull(),
+  // Nullable to match the other taxonomy axes — auto-created `unverified`
+  // tags don't carry a colour until an admin assigns one via /admin/tags.
+  colorHex: text('color_hex'),
   description: text('description'),
   unverified: boolean('unverified').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
