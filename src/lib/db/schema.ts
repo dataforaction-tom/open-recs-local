@@ -241,6 +241,7 @@ export const thematicAreas = pgTable('thematic_areas', {
   name: text('name').notNull(),
   colorHex: text('color_hex').notNull(),
   description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -258,6 +259,74 @@ export const recommendationsThematicAreas = pgTable(
     pk: primaryKey({ columns: [t.recommendationId, t.thematicAreaId] }),
   }),
 );
+
+/**
+ * Shared shape for taxonomy axes added in the 1.1 extraction-and-tagging
+ * rebuild. Each axis is a flat reference table with a unique slug. Tags
+ * created from extraction-time LLM output that don't match a seeded slug
+ * land here with `unverified=true` for admin review at /admin/tags.
+ *
+ * `color_hex` is nullable — only some axes (themes) carry a visual palette.
+ */
+export const purposes = pgTable('purposes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sourceTypes = pgTable('source_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const targetAudienceTypes = pgTable('target_audience_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const locationScopes = pgTable('location_scopes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const roleRelevances = pgTable('role_relevances', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const priorityTimescales = pgTable('priority_timescales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const evidenceTypes = pgTable('evidence_types', {
   id: uuid('id').primaryKey().defaultRandom(),
