@@ -18,6 +18,18 @@ const providerSelectors = {
   LLM_BASE_URL: z.string().url().optional(),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
+  // Optional dedicated streaming-chat config. When any CHAT_* var is unset it
+  // falls back to the matching LLM_* var, so existing single-model deployments
+  // keep working without change. This split exists because the structured-output
+  // path (extract handler) and the streaming-chat path (`/api/chat-search`)
+  // have very different model needs — a heavyweight extract model is overkill
+  // for chat, and a tiny chat model often can't reliably emit valid JSON.
+  CHAT_PROVIDER: z
+    .enum(['fake', 'openai-compatible', 'anthropic', 'mistral'])
+    .optional(),
+  CHAT_BASE_URL: z.string().url().optional(),
+  CHAT_API_KEY: z.string().optional(),
+  CHAT_MODEL: z.string().optional(),
   EMBEDDING_PROVIDER: z
     .enum(['fake', 'openai-compatible', 'voyage'])
     .default('fake'),
@@ -88,6 +100,30 @@ export const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['LLM_MODEL'],
         message: 'LLM_MODEL is required when LLM_PROVIDER=openai-compatible',
+      });
+    }
+  })
+  .superRefine((env, ctx) => {
+    // CHAT_PROVIDER=openai-compatible needs an effective base URL + model.
+    // Fall back to the LLM_* values so a single-model deployment that sets
+    // only LLM_* still satisfies the chat path.
+    if (env.CHAT_PROVIDER !== 'openai-compatible') return;
+    const effectiveBase = env.CHAT_BASE_URL ?? env.LLM_BASE_URL;
+    const effectiveModel = env.CHAT_MODEL ?? env.LLM_MODEL;
+    if (!effectiveBase) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['CHAT_BASE_URL'],
+        message:
+          'CHAT_BASE_URL (or LLM_BASE_URL) is required when CHAT_PROVIDER=openai-compatible',
+      });
+    }
+    if (!effectiveModel) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['CHAT_MODEL'],
+        message:
+          'CHAT_MODEL (or LLM_MODEL) is required when CHAT_PROVIDER=openai-compatible',
       });
     }
   })

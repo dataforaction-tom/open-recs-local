@@ -71,6 +71,53 @@ describe('loadEnv', () => {
     ).toThrow(/RESEND_FROM/);
   });
 
+  it('CHAT_* config falls back to LLM_* when unset', () => {
+    const env = loadEnv({
+      APP_MODE: 'local',
+      DATABASE_URL: 'postgres://x/y',
+      LLM_PROVIDER: 'openai-compatible',
+      LLM_BASE_URL: 'http://localhost:11434/v1',
+      LLM_MODEL: 'llama3.1:8b',
+    });
+    expect(env.CHAT_PROVIDER).toBeUndefined();
+    expect(env.CHAT_BASE_URL).toBeUndefined();
+    expect(env.CHAT_MODEL).toBeUndefined();
+  });
+
+  it('rejects CHAT_PROVIDER=openai-compatible without an effective base URL', () => {
+    expect(() =>
+      loadEnv({
+        APP_MODE: 'local',
+        DATABASE_URL: 'postgres://x/y',
+        CHAT_PROVIDER: 'openai-compatible',
+        CHAT_MODEL: 'qwen2.5:0.5b',
+      }),
+    ).toThrow(/CHAT_BASE_URL/);
+  });
+
+  it('rejects CHAT_PROVIDER=openai-compatible without an effective model', () => {
+    expect(() =>
+      loadEnv({
+        APP_MODE: 'local',
+        DATABASE_URL: 'postgres://x/y',
+        CHAT_PROVIDER: 'openai-compatible',
+        CHAT_BASE_URL: 'http://localhost:11434/v1',
+      }),
+    ).toThrow(/CHAT_MODEL/);
+  });
+
+  it('accepts CHAT_PROVIDER=openai-compatible when LLM_* satisfies the fallback', () => {
+    const env = loadEnv({
+      APP_MODE: 'local',
+      DATABASE_URL: 'postgres://x/y',
+      LLM_PROVIDER: 'openai-compatible',
+      LLM_BASE_URL: 'http://localhost:11434/v1',
+      LLM_MODEL: 'llama3.1:8b',
+      CHAT_PROVIDER: 'openai-compatible',
+    });
+    expect(env.CHAT_PROVIDER).toBe('openai-compatible');
+  });
+
   it('accepts EMAIL_PROVIDER=resend with both required vars', () => {
     const env = loadEnv({
       APP_MODE: 'local',
