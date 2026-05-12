@@ -34,3 +34,79 @@ jobs:
 
       - name: Verify (typecheck, lint, test, build)
         run: pnpm verify
+
+  e2e:
+    name: e2e (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [local, hosted]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install Playwright chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Cache Ollama models
+        if: matrix.mode == 'local'
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ollama-qwen2.5-0.5b-${{ runner.os }}
+
+      - name: Start Ollama + pull qwen2.5:0.5b
+        if: matrix.mode == 'local'
+        run: |
+          docker run -d --name ollama -p 11434:11434 \
+            -v "${HOME}/.ollama:/root/.ollama" \
+            ollama/ollama:latest
+          # Wait for Ollama HTTP API to be reachable.
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:11434/api/tags > /dev/null 2>&1; then
+              echo "ollama up after ${i}s"; break
+            fi
+            sleep 1
+          done
+          docker exec ollama ollama pull qwen2.5:0.5b
+          # Sanity probe via the OpenAI-compat endpoint that the spec uses.
+          curl -fsS http://localhost:11434/v1/models | head -c 200
+          echo
+
+      - name: Run Playwright (${{ matrix.mode }})
+        env:
+          CI: 'true'
+          OLLAMA_BASE_URL: http://localhost:11434/v1
+          E2E_CHAT_MODEL: qwen2.5:0.5b
+        run: pnpm test:e2e:${{ matrix.mode }}
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.mode }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
