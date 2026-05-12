@@ -118,6 +118,12 @@ export async function POST(req: Request): Promise<Response> {
     };
     if (title !== undefined) serviceInput.title = title;
     if (is_private !== undefined) serviceInput.isPrivate = is_private;
+    // Stamp the owner so hosted-mode listing/visibility filters can find
+    // the source from this user. Local mode uses the `system` context
+    // (isSystem=true, non-UUID id) and stays public-anonymous.
+    if (!auth.isSystem && auth.user?.id) {
+      serviceInput.ownerUserId = auth.user.id;
+    }
 
     const result = await uploadSource(ctx, serviceInput, { storage: providers.storage, queue });
 
