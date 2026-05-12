@@ -11,11 +11,27 @@ import {
   rejectOwnershipRequest,
   withdrawOwnershipRequest,
 } from '@/lib/repositories/ownership-request';
+import { updateSourceMetadata } from '@/lib/repositories/source';
 import type { RepoContext } from '@/lib/repositories/types';
 import {
   RequestAccessInput,
   ResolveRequestInput,
 } from '@/lib/validation/ownership-request';
+import { EditSourceInput, type EditSourceInputT } from '@/lib/validation/edit-source';
+import {
+  resolveOrCreatePurposes,
+  resolveOrCreateRoleRelevances,
+  resolveOrCreateSourceTypes,
+  resolveOrCreateTargetAudienceTypes,
+  resolveOrCreateThematicAreas,
+} from '@/lib/repositories/taxonomy';
+import {
+  replaceSourcePurposes,
+  replaceSourceRoleRelevances,
+  replaceSourceSourceTypes,
+  replaceSourceTargetAudienceTypes,
+  replaceSourceThematicAreas,
+} from '@/lib/repositories/source-tags';
 
 export type OwnershipActionResult =
   | { ok: true; id?: string }
@@ -96,6 +112,56 @@ export async function rejectSourceAccessRequest(
     if (!result.ok) return { ok: false, error: result.error };
     revalidatePath('/admin', 'page');
     return { ok: true };
+  } finally {
+    await close();
+  }
+}
+
+function parsePublicationDate(input: string | null | undefined): Date | null {
+  if (!input) return null;
+  const parsed = new Date(input);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+export async function updateSource(input: unknown): Promise<OwnershipActionResult> {
+  const parsed = EditSourceInput.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'validation' };
+  const data: EditSourceInputT = parsed.data;
+  const { ctx, close } = await buildContext();
+  try {
+    await updateSourceMetadata(ctx, data.sourceId, {
+      title: data.title,
+      summary: data.summary ?? null,
+      authors: data.authors,
+      publicationDate: parsePublicationDate(data.publication_date ?? null),
+      orgOwner: data.org_owner ?? null,
+      originalUrl: data.original_url ?? null,
+      attachmentUrl: data.attachment_url ?? null,
+      datasets: data.datasets,
+      ...(data.is_private !== undefined ? { isPrivate: data.is_private } : {}),
+    });
+
+    const themeIds = await resolveOrCreateThematicAreas(ctx, data.thematic_area_slugs);
+    await replaceSourceThematicAreas(ctx, data.sourceId, themeIds);
+    const typeIds = await resolveOrCreateSourceTypes(ctx, data.source_type_slugs);
+    await replaceSourceSourceTypes(ctx, data.sourceId, typeIds);
+    const purposeIds = await resolveOrCreatePurposes(ctx, data.purpose_slugs);
+    await replaceSourcePurposes(ctx, data.sourceId, purposeIds);
+    const roleIds = await resolveOrCreateRoleRelevances(ctx, data.role_relevance_slugs);
+    await replaceSourceRoleRelevances(ctx, data.sourceId, roleIds);
+    const audienceIds = await resolveOrCreateTargetAudienceTypes(
+      ctx,
+      data.target_audience_type_slugs,
+    );
+    await replaceSourceTargetAudienceTypes(ctx, data.sourceId, audienceIds);
+
+    revalidatePath('/sources', 'page');
+    revalidatePath(`/sources/[slug]`, 'page');
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'update failed';
+    return { ok: false, error: message };
   } finally {
     await close();
   }

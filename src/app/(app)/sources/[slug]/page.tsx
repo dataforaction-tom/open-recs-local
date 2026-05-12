@@ -12,6 +12,14 @@ import type { RepoContext } from '@/lib/repositories/types';
 import { SourceViewer } from '@/components/source-viewer/source-viewer';
 import { RequestAccessForm } from '@/components/sources/request-access-form';
 import type { SourcePage } from '@/components/source-viewer/source-markdown';
+import { TagChips } from '@/components/tags/tag-chips';
+import {
+  listSourcePurposes,
+  listSourceRoleRelevances,
+  listSourceSourceTypes,
+  listSourceTargetAudienceTypes,
+  listSourceThematicAreas,
+} from '@/lib/repositories/source-tags';
 import {
   requestSourceAccess,
   withdrawSourceAccessRequest,
@@ -76,6 +84,14 @@ export default async function SourceDetailPage({ params }: PageProps) {
     const pdfToken = signFileToken(env.FILE_TOKEN_SECRET, { key: data.originalPdfKey });
     const pdfUrl = `/api/files/${pdfToken}`;
 
+    const [themes, types, purposes, roles, audiences] = await Promise.all([
+      listSourceThematicAreas(ctx, data.source.id),
+      listSourceSourceTypes(ctx, data.source.id),
+      listSourcePurposes(ctx, data.source.id),
+      listSourceRoleRelevances(ctx, data.source.id),
+      listSourceTargetAudienceTypes(ctx, data.source.id),
+    ]);
+
     const pages: SourcePage[] = data.pages.map((p) => {
       const imageUrls: Record<string, string> = {};
       for (const ref of p.imageRefs) {
@@ -88,6 +104,13 @@ export default async function SourceDetailPage({ params }: PageProps) {
       };
     });
 
+    const hasAnyChips =
+      themes.length > 0 ||
+      types.length > 0 ||
+      purposes.length > 0 ||
+      roles.length > 0 ||
+      audiences.length > 0;
+
     return (
       <div className="space-y-4">
         <div className="flex items-baseline justify-between">
@@ -97,13 +120,30 @@ export default async function SourceDetailPage({ params }: PageProps) {
           >
             ← All sources
           </Link>
-          <Link
-            href={`/sources/${slug}/analytics`}
-            className="text-sm text-accent underline-offset-4 hover:underline"
-          >
-            View analytics →
-          </Link>
+          <div className="flex items-baseline gap-4">
+            <Link
+              href={`/sources/${slug}/edit`}
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-accent hover:underline"
+            >
+              Edit
+            </Link>
+            <Link
+              href={`/sources/${slug}/analytics`}
+              className="text-sm text-accent underline-offset-4 hover:underline"
+            >
+              View analytics →
+            </Link>
+          </div>
         </div>
+        {hasAnyChips && (
+          <div className="space-y-2 border-b border-rule pb-4">
+            <TagChips tags={themes} />
+            <TagChips tags={types} />
+            <TagChips tags={purposes} />
+            <TagChips tags={roles} />
+            <TagChips tags={audiences} />
+          </div>
+        )}
         <SourceViewer title={data.source.title} pages={pages} pdfUrl={pdfUrl} />
       </div>
     );

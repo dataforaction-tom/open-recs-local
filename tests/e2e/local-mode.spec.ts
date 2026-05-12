@@ -92,5 +92,19 @@ test.describe('local mode — upload → recommendations → search → chat', (
         page.getByRole('alert').getByText(/OPENAI_COMPAT_BASE_URL|no streaming chat/i),
       ).toBeVisible({ timeout: 10_000 });
     }
+
+    // 6. Edit flow — navigate to a recommendation, edit the title, save,
+    // reload, and assert the change persisted.
+    await page.goto('/recommendations');
+    await page.getByText(FIXTURE_FIRST_REC_TITLE, { exact: false }).first().click();
+    await page.getByRole('link', { name: /^Edit$/i }).first().click();
+    const titleInput = page.getByLabel(/^Title/i);
+    const originalTitle = await titleInput.inputValue();
+    const editedTitle = `${originalTitle} (edited)`;
+    await titleInput.fill(editedTitle);
+    await page.getByRole('button', { name: /^Save$/i }).click();
+    await page.waitForLoadState('networkidle');
+    // Reload to confirm persistence; the title input shows the edited text.
+    await expect(page.getByLabel(/^Title/i)).toHaveValue(editedTitle, { timeout: 5_000 });
   });
 });

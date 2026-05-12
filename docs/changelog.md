@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## 2026-05-13 — 1.1.0
+
+Extraction & tagging rebuild — bringing data-model parity with v1's richer source-level metadata and per-recommendation multi-axis tagging, plus an admin queue for reviewing LLM-coined tags.
+
+### Added
+
+- **Source-level metadata + multi-axis tagging.** Sources now carry `summary`, `authors`, `publication_date`, `org_owner`, `original_url`, `attachment_url`, `datasets`, plus M2M memberships across thematic areas, source types, purposes, role relevances, and target audience types.
+- **Recommendation-level multi-axis tagging.** Recommendations now carry `target_organization`, `priority_timescale` (FK), `notes`, `confidence` (high/medium/low), plus M2M memberships across thematic areas, purposes, target audiences, and location scopes.
+- **Expanded taxonomy defaults.** 29 thematic areas (v1 parity), plus seeded defaults for the six new axes (9 purposes, 10 source types, 14 target audience types, 5 location scopes, 9 role relevances, 4 priority timescales).
+- **Two-pass section-aware extraction.** The `source.extract` handler now runs two LLM calls — Pass 1 for source metadata, Pass 2 for recommendations — with regex-detected recommendation sections feeding a strict prompt and falling back to a looser full-document prompt otherwise.
+- **Unknown-tag auto-create.** Tags the LLM coins (or humans type in the edit pages) that don't match a seeded slug land as `unverified=true` and surface on `/admin/tags`.
+- **`/sources/[slug]/edit` and `/recommendations/[id]/edit`** dedicated edit pages with multi-axis tag editing.
+- **`/admin/tags`** review queue — promote, rename, merge, delete per axis.
+- **Tag chips** on source detail headers and recommendation overview tabs, with a visual hint for unverified tags.
+
+### Schema
+
+Migrations 0007 through 0011: six new taxonomy reference tables, eight new M2M join tables, source-metadata columns, recommendation-metadata columns, and a nullable-color-hex consistency fix.
+
+### Carry-overs to 1.2
+
+- Search filters by purpose / audience / source type / location.
+- New analytics charts for source-type / audience-mix breakdowns.
+- Inline multi-select edits on the catalogue / index tables.
+- Tag chips on the `/sources` catalogue + `/recommendations` index (deferred to keep 1.1 focused).
+- Bulk re-tag UI.
+- Hierarchical tags (sub-themes).
+
 ## 2026-05-12 — 1.0.0
 
 Open Recommendations Local hits 1.0. From the first foundation commit it set out to be a local-first rebuild of the v1 Supabase app with full parity and a clean second-mode for hosted multi-user deployments. Ten phases later, that's exactly what it is.

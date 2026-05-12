@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { startPostgres, type StartedPg } from '../../../tests/helpers/pg-container';
 import { applyMigrations } from '../../../tests/helpers/migrate';
 import { createDb, type DbClient } from '../db/client';
 import { seedTaxonomy } from '../db/seed-taxonomy';
+import { recommendations, sources } from '../db/schema';
 import {
+  deleteTag,
   listLocationScopes,
   listPriorityTimescales,
   listPurposes,
@@ -11,6 +14,10 @@ import {
   listSourceTypes,
   listTargetAudienceTypes,
   listThematicAreas,
+  listUnverifiedTags,
+  mergeTag,
+  promoteTag,
+  renameTag,
   resolveOrCreateLocationScopes,
   resolveOrCreatePriorityTimescales,
   resolveOrCreatePurposes,
@@ -137,5 +144,66 @@ describe('resolveOrCreateThematicAreas + resolveOrCreateRoleRelevances + resolve
     expect((await resolveOrCreateRoleRelevances(ctx, ['policy-maker'])).length).toBe(1);
     expect((await resolveOrCreatePriorityTimescales(ctx, ['urgent'])).length).toBe(1);
     expect((await resolveOrCreateTargetAudienceTypes(ctx, ['funders'])).length).toBe(1);
+  });
+});
+
+describe('taxonomy admin operations', () => {
+  it('listUnverifiedTags returns only unverified rows for the axis', async () => {
+    await resolveOrCreatePurposes(ctx, ['unverified-test-axis-x']);
+    const rows = await listUnverifiedTags(ctx, 'purposes');
+    expect(rows.find((r) => r.slug === 'unverified-test-axis-x')).toBeDefined();
+    expect(rows.every((r) => r.unverified === true)).toBe(true);
+  });
+
+  it('promoteTag flips unverified=false', async () => {
+    const [id] = await resolveOrCreatePurposes(ctx, ['unverified-promote']);
+    await promoteTag(ctx, 'purposes', id!);
+    const rows = await listPurposes(ctx);
+    const row = rows.find((r) => r.slug === 'unverified-promote');
+    expect(row?.unverified).toBe(false);
+  });
+
+  it('renameTag updates name', async () => {
+    const [id] = await resolveOrCreatePurposes(ctx, ['unverified-rename']);
+    await renameTag(ctx, 'purposes', id!, 'Renamed Purpose');
+    const rows = await listPurposes(ctx);
+    const row = rows.find((r) => r.slug === 'unverified-rename');
+    expect(row?.name).toBe('Renamed Purpose');
+  });
+
+  it('deleteTag removes the row', async () => {
+    const [id] = await resolveOrCreatePurposes(ctx, ['unverified-delete']);
+    await deleteTag(ctx, 'purposes', id!);
+    const rows = await listPurposes(ctx);
+    expect(rows.find((r) => r.slug === 'unverified-delete')).toBeUndefined();
+  });
+
+  it('mergeTag for priority_timescales rewrites the FK and deletes the source', async () => {
+    const fromIds = await resolveOrCreatePriorityTimescales(ctx, ['unverified-priority']);
+    const fromId = fromIds[0]!;
+    const verifiedRows = await listPriorityTimescales(ctx);
+    const toId = verifiedRows.find((r) => r.slug === 'urgent')!.id;
+    const [s] = await ctx.db
+      .insert(sources)
+      .values({ slug: `merge-src-${Math.random().toString(36).slice(2, 10)}`, title: 'M' })
+      .returning({ id: sources.id });
+    const [r] = await ctx.db
+      .insert(recommendations)
+      .values({
+        sourceId: s!.id,
+        slug: `merge-rec-${Math.random().toString(36).slice(2, 10)}`,
+        title: 'Merge candidate',
+        body: 'Body with at least twenty characters so the schema is happy.',
+        priorityTimescaleId: fromId,
+      })
+      .returning({ id: recommendations.id });
+    await mergeTag(ctx, 'priority_timescales', fromId, toId);
+    const [updated] = await ctx.db
+      .select({ priorityTimescaleId: recommendations.priorityTimescaleId })
+      .from(recommendations)
+      .where(eq(recommendations.id, r!.id));
+    expect(updated?.priorityTimescaleId).toBe(toId);
+    const rows = await listPriorityTimescales(ctx);
+    expect(rows.find((p) => p.id === fromId)).toBeUndefined();
   });
 });

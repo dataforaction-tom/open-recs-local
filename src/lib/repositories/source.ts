@@ -212,3 +212,93 @@ export async function getSourceWithPagesBySlug(
   };
 }
 
+/**
+ * Row shape with the full PR 1 / PR 2 metadata columns. Used by the edit
+ * page (`/sources/[slug]/edit`) so the form has all the fields it needs to
+ * populate as defaults. Auth filter mirrors `findSourceBySlug`.
+ */
+export type SourceWithMetadata = {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string | null;
+  authors: string[];
+  publicationDate: Date | null;
+  orgOwner: string | null;
+  originalUrl: string | null;
+  attachmentUrl: string | null;
+  datasets: Array<{ description: string; url: string }>;
+  isPrivate: boolean;
+  ownerUserId: string | null;
+};
+
+export async function findSourceBySlugWithMetadata(
+  ctx: RepoContext,
+  slug: string,
+): Promise<SourceWithMetadata | null> {
+  const rows = await ctx.db
+    .select({
+      id: sources.id,
+      slug: sources.slug,
+      title: sources.title,
+      summary: sources.summary,
+      authors: sources.authors,
+      publicationDate: sources.publicationDate,
+      orgOwner: sources.orgOwner,
+      originalUrl: sources.originalUrl,
+      attachmentUrl: sources.attachmentUrl,
+      datasets: sources.datasets,
+      isPrivate: sources.isPrivate,
+      ownerUserId: sources.ownerUserId,
+    })
+    .from(sources)
+    .where(eq(sources.slug, slug))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  // The auth filter reuses `canRead` via a compatible projection shape.
+  if (!canRead(ctx, { id: row.id, slug: row.slug, title: row.title, isPrivate: row.isPrivate, ownerUserId: row.ownerUserId })) return null;
+  return row;
+}
+
+/**
+ * UPDATE source metadata columns and optionally `is_private`. Used by the
+ * source edit page's server action. Tags + M2M memberships are handled by
+ * the action via `resolveOrCreate*` + `replaceSource*`; this function just
+ * touches the direct columns on the `sources` row.
+ */
+export type UpdateSourceMetadataInput = {
+  title: string;
+  summary: string | null;
+  authors: string[];
+  publicationDate: Date | null;
+  orgOwner: string | null;
+  originalUrl: string | null;
+  attachmentUrl: string | null;
+  datasets: Array<{ description: string; url: string }>;
+  isPrivate?: boolean;
+};
+
+export async function updateSourceMetadata(
+  ctx: RepoContext,
+  sourceId: string,
+  input: UpdateSourceMetadataInput,
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- drizzle update set value typing
+  const updateSet: Record<string, any> = {
+    title: input.title,
+    summary: input.summary,
+    authors: input.authors,
+    publicationDate: input.publicationDate,
+    orgOwner: input.orgOwner,
+    originalUrl: input.originalUrl,
+    attachmentUrl: input.attachmentUrl,
+    datasets: input.datasets,
+    updatedAt: new Date(),
+  };
+  if (input.isPrivate !== undefined) {
+    updateSet['isPrivate'] = input.isPrivate;
+  }
+  await ctx.db.update(sources).set(updateSet).where(eq(sources.id, sourceId));
+}
+
