@@ -20,24 +20,38 @@ afterAll(async () => {
 });
 
 describe('seedTaxonomy', () => {
-  it('inserts all taxonomy rows', async () => {
+  it('inserts the expected row count for every taxonomy axis', async () => {
     await seedTaxonomy(client.db);
-    const tRows = await client.sql<{ n: number }[]>`select count(*)::int as n from thematic_areas`;
-    const eRows = await client.sql<{ n: number }[]>`select count(*)::int as n from evidence_types`;
-    const pRows = await client.sql<{ n: number }[]>`select count(*)::int as n from progress_ratings`;
-    expect(tRows[0]?.n).toBe(5);
-    expect(eRows[0]?.n).toBe(4);
-    expect(pRows[0]?.n).toBe(4);
+    const themes = await client.sql<{ n: number }[]>`select count(*)::int as n from thematic_areas`;
+    expect(themes[0]?.n).toBe(29);
+    const purposesRows = await client.sql<{ n: number }[]>`select count(*)::int as n from purposes`;
+    expect(purposesRows[0]?.n).toBe(9);
+    const types = await client.sql<{ n: number }[]>`select count(*)::int as n from source_types`;
+    expect(types[0]?.n).toBe(10);
+    const audiences = await client.sql<{ n: number }[]>`select count(*)::int as n from target_audience_types`;
+    expect(audiences[0]?.n).toBe(14);
+    const locations = await client.sql<{ n: number }[]>`select count(*)::int as n from location_scopes`;
+    expect(locations[0]?.n).toBe(5);
+    const roles = await client.sql<{ n: number }[]>`select count(*)::int as n from role_relevances`;
+    expect(roles[0]?.n).toBe(9);
+    const priorities = await client.sql<{ n: number }[]>`select count(*)::int as n from priority_timescales`;
+    expect(priorities[0]?.n).toBe(4);
+    const evidence = await client.sql<{ n: number }[]>`select count(*)::int as n from evidence_types`;
+    expect(evidence[0]?.n).toBe(4);
+    const ratings = await client.sql<{ n: number }[]>`select count(*)::int as n from progress_ratings`;
+    expect(ratings[0]?.n).toBe(4);
   });
 
   it('is idempotent — re-running does not duplicate rows or error', async () => {
     await seedTaxonomy(client.db);
     await seedTaxonomy(client.db);
-    const tRows = await client.sql<{ n: number }[]>`select count(*)::int as n from thematic_areas`;
-    const eRows = await client.sql<{ n: number }[]>`select count(*)::int as n from evidence_types`;
-    const pRows = await client.sql<{ n: number }[]>`select count(*)::int as n from progress_ratings`;
-    expect(tRows[0]?.n).toBe(5);
-    expect(eRows[0]?.n).toBe(4);
-    expect(pRows[0]?.n).toBe(4);
+    const rows = await client.sql<{ n: number }[]>`select count(*)::int as n from thematic_areas`;
+    expect(rows[0]?.n).toBe(29);
+  });
+
+  it('seeds taxonomy rows with unverified=false', async () => {
+    await seedTaxonomy(client.db);
+    const rows = await client.sql<{ n: number }[]>`select count(*)::int as n from thematic_areas where unverified = true`;
+    expect(rows[0]?.n).toBe(0);
   });
 });

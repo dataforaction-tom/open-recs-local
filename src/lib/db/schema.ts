@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   customType,
   primaryKey,
+  date,
 } from 'drizzle-orm/pg-core';
 
 export const EMBEDDING_DIM = 768 as const;
@@ -121,6 +122,13 @@ export const sources = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     slug: text('slug').notNull().unique(),
     title: text('title').notNull(),
+    summary: text('summary'),
+    authors: text('authors').array().notNull().default(sql`'{}'::text[]`),
+    publicationDate: date('publication_date', { mode: 'date' }),
+    orgOwner: text('org_owner'),
+    originalUrl: text('original_url'),
+    attachmentUrl: text('attachment_url'),
+    datasets: jsonb('datasets').$type<Array<{ description: string; url: string }>>().notNull().default([]),
     canonicalMarkdown: text('canonical_markdown'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
     isPrivate: boolean('is_private').notNull().default(false),
@@ -184,6 +192,12 @@ export const recommendations = pgTable(
     title: text('title').notNull(),
     body: text('body').notNull(),
     pageAnchor: integer('page_anchor'),
+    targetOrganization: text('target_organization'),
+    priorityTimescaleId: uuid('priority_timescale_id').references(() => priorityTimescales.id, {
+      onDelete: 'set null',
+    }),
+    notes: text('notes'),
+    confidence: text('confidence', { enum: ['high', 'medium', 'low'] }),
     embedding: vector('embedding', { dimensions: EMBEDDING_DIM }),
     embeddingModel: text('embedding_model'),
     tsv: tsvector('tsv').generatedAlwaysAs(
@@ -241,6 +255,7 @@ export const thematicAreas = pgTable('thematic_areas', {
   name: text('name').notNull(),
   colorHex: text('color_hex').notNull(),
   description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -256,6 +271,212 @@ export const recommendationsThematicAreas = pgTable(
   },
   (t) => ({
     pk: primaryKey({ columns: [t.recommendationId, t.thematicAreaId] }),
+  }),
+);
+
+/**
+ * Shared shape for taxonomy axes added in the 1.1 extraction-and-tagging
+ * rebuild. Each axis is a flat reference table with a unique slug. Tags
+ * created from extraction-time LLM output that don't match a seeded slug
+ * land here with `unverified=true` for admin review at /admin/tags.
+ *
+ * `color_hex` is nullable — only some axes (themes) carry a visual palette.
+ */
+export const purposes = pgTable('purposes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const sourceTypes = pgTable('source_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const targetAudienceTypes = pgTable('target_audience_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const locationScopes = pgTable('location_scopes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const roleRelevances = pgTable('role_relevances', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const priorityTimescales = pgTable('priority_timescales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  colorHex: text('color_hex'),
+  description: text('description'),
+  unverified: boolean('unverified').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// -- sources × axis M2M join tables ------------------------------------------
+
+export const sourcesThematicAreas = pgTable(
+  'sources_thematic_areas',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    thematicAreaId: uuid('thematic_area_id')
+      .notNull()
+      .references(() => thematicAreas.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.thematicAreaId] }),
+    byThematicAreaIdx: index('sources_thematic_areas_thematic_area_id_idx').on(t.thematicAreaId),
+  }),
+);
+
+export const sourcesSourceTypes = pgTable(
+  'sources_source_types',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    sourceTypeId: uuid('source_type_id')
+      .notNull()
+      .references(() => sourceTypes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.sourceTypeId] }),
+    bySourceTypeIdx: index('sources_source_types_source_type_id_idx').on(t.sourceTypeId),
+  }),
+);
+
+export const sourcesPurposes = pgTable(
+  'sources_purposes',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    purposeId: uuid('purpose_id')
+      .notNull()
+      .references(() => purposes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.purposeId] }),
+    byPurposeIdx: index('sources_purposes_purpose_id_idx').on(t.purposeId),
+  }),
+);
+
+export const sourcesRoleRelevances = pgTable(
+  'sources_role_relevances',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    roleRelevanceId: uuid('role_relevance_id')
+      .notNull()
+      .references(() => roleRelevances.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.roleRelevanceId] }),
+    byRoleRelevanceIdx: index('sources_role_relevances_role_relevance_id_idx').on(t.roleRelevanceId),
+  }),
+);
+
+export const sourcesTargetAudienceTypes = pgTable(
+  'sources_target_audience_types',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    targetAudienceTypeId: uuid('target_audience_type_id')
+      .notNull()
+      .references(() => targetAudienceTypes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.targetAudienceTypeId] }),
+    byTargetAudienceTypeIdx: index('sources_target_audience_types_target_audience_type_id_idx').on(
+      t.targetAudienceTypeId,
+    ),
+  }),
+);
+
+// -- recommendations × axis M2M join tables ----------------------------------
+
+export const recommendationsPurposes = pgTable(
+  'recommendations_purposes',
+  {
+    recommendationId: uuid('recommendation_id')
+      .notNull()
+      .references(() => recommendations.id, { onDelete: 'cascade' }),
+    purposeId: uuid('purpose_id')
+      .notNull()
+      .references(() => purposes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.recommendationId, t.purposeId] }),
+    byPurposeIdx: index('recommendations_purposes_purpose_id_idx').on(t.purposeId),
+  }),
+);
+
+export const recommendationsTargetAudienceTypes = pgTable(
+  'recommendations_target_audience_types',
+  {
+    recommendationId: uuid('recommendation_id')
+      .notNull()
+      .references(() => recommendations.id, { onDelete: 'cascade' }),
+    targetAudienceTypeId: uuid('target_audience_type_id')
+      .notNull()
+      .references(() => targetAudienceTypes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.recommendationId, t.targetAudienceTypeId] }),
+    byTargetAudienceTypeIdx: index(
+      'recommendations_target_audience_types_target_audience_type_id_idx',
+    ).on(t.targetAudienceTypeId),
+  }),
+);
+
+export const recommendationsLocationScopes = pgTable(
+  'recommendations_location_scopes',
+  {
+    recommendationId: uuid('recommendation_id')
+      .notNull()
+      .references(() => recommendations.id, { onDelete: 'cascade' }),
+    locationScopeId: uuid('location_scope_id')
+      .notNull()
+      .references(() => locationScopes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.recommendationId, t.locationScopeId] }),
+    byLocationScopeIdx: index('recommendations_location_scopes_location_scope_id_idx').on(
+      t.locationScopeId,
+    ),
   }),
 );
 
