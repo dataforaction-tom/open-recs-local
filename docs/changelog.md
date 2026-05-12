@@ -6,7 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-Phase 10b (Playwright E2E + CI matrix + 1.0 release) is in flight.
+## 2026-05-12 — 1.0.0
+
+Open Recommendations Local hits 1.0. From the first foundation commit it set out to be a local-first rebuild of the v1 Supabase app with full parity and a clean second-mode for hosted multi-user deployments. Ten phases later, that's exactly what it is.
+
+### The journey, in shorthand
+
+- **Phase 0–1.** Next.js 16 + Postgres + pgvector + Drizzle scaffold, 13-table schema, five provider interfaces with fakes, Testcontainers-backed integration harness, MIT license.
+- **Phase 2.** pg-boss + worker sidecar, parse / extract / embed pipeline, SSE progress via `pg_notify`, real OpenAI-compatible LLM + embedding adapters, Docling + Mistral OCR adapters, `/api/sources` upload, fixture corpus.
+- **Phase 3.** Hybrid (RRF) + keyword search SQL, streaming `/api/chat-search` with `[[source:slug#page:N]]` citation grammar, 60s query-embedding cache.
+- **Phase 4.** App shell, dark mode, route groups, mode-aware redirect, feature gating, dashboard.
+- **Phase 5.** Source viewer (split-pane PDF + markdown with synced scroll), signed-URL file route.
+- **Phase 6.** Recommendations index (TanStack Table, URL-driven filters), `/recommendations/[id]` with Similar / Progress tabs, plus `/search` and `/chat` UI carried over and shipped in 10b.
+- **Phase 7.** Progress updates form + list + status transitions; inline-editable status column on the recommendations table.
+- **Phase 8.** Hosted mode: Better-auth (email + password + magic link), ownership requests, admin dashboard, `/profile`, role assignment. Local mode left untouched.
+- **Phase 9.** Analytics: four Chart.js dashboards (`/analytics` global + per-source), nightly `analytics.refresh` pg-boss job, on-demand miss-backfill.
+- **Phase 10a.** Polish: Resend email backend, `@tailwindcss/typography`, stacked mobile source viewer, `docs/running-locally.md`, editorial-minimalist redesign across every surface, real `fs` storage adapter, OCR / LLM hardening.
+- **Phase 10b** (this release). Playwright E2E in both modes, CI matrix with Ollama for the chat path, 1.0 release.
+
+### Added in 10b
+
+- **Playwright E2E suite.** `pnpm test:e2e:local` boots Testcontainers Postgres + worker + Next dev and drives the documented user flow (upload → recommendations → search → chat reply) in a real browser. `pnpm test:e2e:hosted` drives the two-user flow (signup → private upload → ownership request → admin approval → access). Both modes complete in under 30 seconds on a warm laptop.
+- **CI matrix.** GitHub Actions runs both modes on every push. The local-mode job spins up an Ollama sidecar and pulls `qwen2.5:0.5b` (~400MB, cached) so the streaming chat path is covered end-to-end; the hosted-mode job skips Ollama. Reports and traces upload as artifacts on failure.
+- **CHAT_* env split.** `CHAT_PROVIDER` / `CHAT_BASE_URL` / `CHAT_MODEL` / `CHAT_API_KEY` are new optional env vars that override the matching `LLM_*` value for the streaming chat path only. Existing single-model deployments leave them blank and nothing changes. Operators who want to pair a heavyweight structured-output model (extract) with a small streaming model (chat) can now do so without forks.
+
+### Fixed in 10b
+
+- **`POST /api/sources` now stamps `owner_user_id`** from the authenticated session in hosted mode, so a signed-in user's private uploads show up in their own catalogue listing and can be the target of ownership requests. Local mode (system context) stays public-anonymous as before.
+- **`backfillPageEmbeddings`** restricts the one-shot to sources at `status='ready'`, so it can't race in-flight pipelines and short-circuit them to `ready` mid-extract.
+- **`ChatView`** caps the history POSTed to `/api/chat-search` at 20 entries to match the server-side schema. Without trimming the client started getting 400s after roughly ten turns.
+- **`SearchForm`** now tracks `source` and `theme` in URL-bound state, so submitting / toggling mode preserves shared filtered links.
+- **`embedHandler`** embeds `source_pages` as well as `recommendations` (the bug that made `/chat` always answer "I don't have any passages").
+
+### Notes
+
+- **Compose smoke is operator-run.** Verify `docker compose up -d` (base) and `docker compose -f docker-compose.yml -f docker-compose.docling.yml up -d` (with Docling sidecar) both come up healthy on your target box before tagging.
+- **Tag the release with `git tag v1.0.0` after the 10b PR squash-merges.**
+- **`STORAGE_PROVIDER=s3` and a MinIO compose override** are intentionally **not in 1.0**. The enum value is present in the env schema but no S3 adapter ships. Plan to land it in 1.1 with a `docker-compose.minio.yml`.
+- **NetworkViz** (force-directed similarity graph) is 1.x.
+- **OAuth providers, 2FA, account deletion / GDPR export, audit log of admin actions** are all 1.x.
+- **Rate limiting** on `/api/chat-search` and signup is 1.x ops hardening.
 
 ## 2026-05-11 — Phase 10a: Email, typography, mobile, docs
 
