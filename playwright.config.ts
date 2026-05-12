@@ -9,22 +9,26 @@ import { defineConfig, devices } from '@playwright/test';
  *   DATABASE_URL is bound to a Testcontainers port only known at runtime,
  *   and `webServer.env` is resolved before globalSetup. Instead globalSetup
  *   spawns the dev server + worker itself and globalTeardown kills them.
+ * - One config, two modes. `E2E_MODE=local|hosted` (default `local`) selects
+ *   the matching globalSetup + globalTeardown + testMatch. Run the modes
+ *   sequentially via `pnpm test:e2e` (which runs both).
  * - baseURL is read from `PLAYWRIGHT_BASE_URL` at runtime (set by
  *   globalSetup) so the spec uses whatever port the lifecycle reserved.
  */
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3100';
+const mode = (process.env.E2E_MODE as 'local' | 'hosted' | undefined) ?? 'local';
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? (mode === 'hosted' ? 'http://localhost:3101' : 'http://localhost:3100');
 
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: ['**/*.spec.ts'],
+  testMatch: [`**/${mode}-mode.spec.ts`],
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
-  globalSetup: './tests/e2e/local-setup.ts',
-  globalTeardown: './tests/e2e/local-teardown.ts',
-  timeout: 120_000,
+  globalSetup: `./tests/e2e/${mode}-setup.ts`,
+  globalTeardown: `./tests/e2e/${mode}-teardown.ts`,
+  timeout: 180_000,
   use: {
     baseURL,
     trace: 'retain-on-failure',
