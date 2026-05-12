@@ -11,7 +11,20 @@ import { emitJobEvent, subscribeJobEvents } from '@/lib/jobs/events';
 import { createProviders, type Providers } from '@/lib/providers';
 import type { JobContext, JobEvent } from '@/lib/jobs/context';
 import { registerHandlers } from '@/lib/jobs/handlers';
-import { recommendations, sourcePages, sources } from '@/lib/db/schema';
+import {
+  recommendations,
+  recommendationsLocationScopes,
+  recommendationsPurposes,
+  recommendationsTargetAudienceTypes,
+  recommendationsThematicAreas,
+  sourcePages,
+  sources,
+  sourcesPurposes,
+  sourcesRoleRelevances,
+  sourcesSourceTypes,
+  sourcesTargetAudienceTypes,
+  sourcesThematicAreas,
+} from '@/lib/db/schema';
 import type { RepoContext } from '@/lib/repositories/types';
 import { seedTaxonomy } from '@/scripts/seed';
 import { uploadSource } from '@/lib/services/upload-source';
@@ -42,7 +55,7 @@ const fixtureDir = path.resolve(process.cwd(), 'fixtures/sources');
 const fixtureFile = 'sample-report.pdf';
 const fixtureStem = 'sample-report';
 
-type FixtureRec = { title: string; full_text: string; thematic_area_slug?: string };
+type FixtureRec = { title: string; body: string };
 
 async function loadFixturePdf(): Promise<Buffer> {
   return readFile(path.join(fixtureDir, fixtureFile));
@@ -53,7 +66,7 @@ async function loadFixtureRecs(): Promise<FixtureRec[]> {
     path.join(fixtureDir, `${fixtureStem}.recommendations.json`),
     'utf8',
   );
-  return JSON.parse(raw) as FixtureRec[];
+  return (JSON.parse(raw) as { recommendations: FixtureRec[] }).recommendations;
 }
 
 async function loadFixturePageCount(): Promise<number> {
@@ -188,6 +201,85 @@ describe('pipeline e2e', () => {
         expect(row.dim).toBe(768);
         expect(Number(row.nonzero)).toBeGreaterThan(0);
       }
+
+      // After PR 2: assert source metadata + M2M memberships are populated.
+      const [updatedSource] = await dbClient.db
+        .select({
+          summary: sources.summary,
+          authors: sources.authors,
+          orgOwner: sources.orgOwner,
+        })
+        .from(sources)
+        .where(eq(sources.id, sourceId));
+      expect(updatedSource?.summary).toBeTruthy();
+      expect(updatedSource?.authors.length).toBeGreaterThan(0);
+
+      const sourceThemeMemberships = await dbClient.db
+        .select()
+        .from(sourcesThematicAreas)
+        .where(eq(sourcesThematicAreas.sourceId, sourceId));
+      expect(sourceThemeMemberships.length).toBeGreaterThan(0);
+
+      const sourceTypeMemberships = await dbClient.db
+        .select()
+        .from(sourcesSourceTypes)
+        .where(eq(sourcesSourceTypes.sourceId, sourceId));
+      expect(sourceTypeMemberships.length).toBeGreaterThan(0);
+
+      const sourcePurposeMemberships = await dbClient.db
+        .select()
+        .from(sourcesPurposes)
+        .where(eq(sourcesPurposes.sourceId, sourceId));
+      expect(sourcePurposeMemberships.length).toBeGreaterThan(0);
+
+      const sourceAudienceMemberships = await dbClient.db
+        .select()
+        .from(sourcesTargetAudienceTypes)
+        .where(eq(sourcesTargetAudienceTypes.sourceId, sourceId));
+      expect(sourceAudienceMemberships.length).toBeGreaterThan(0);
+
+      const sourceRoleMemberships = await dbClient.db
+        .select()
+        .from(sourcesRoleRelevances)
+        .where(eq(sourcesRoleRelevances.sourceId, sourceId));
+      expect(sourceRoleMemberships.length).toBeGreaterThan(0);
+
+      // After PR 2: assert rec-side M2M memberships are populated.
+      const recIds = recRows.map((r) => r.id);
+      let totalRecThemeMemberships = 0;
+      let totalRecPurposeMemberships = 0;
+      let totalRecAudienceMemberships = 0;
+      let totalRecLocationMemberships = 0;
+      for (const recId of recIds) {
+        totalRecThemeMemberships += (
+          await dbClient.db
+            .select()
+            .from(recommendationsThematicAreas)
+            .where(eq(recommendationsThematicAreas.recommendationId, recId))
+        ).length;
+        totalRecPurposeMemberships += (
+          await dbClient.db
+            .select()
+            .from(recommendationsPurposes)
+            .where(eq(recommendationsPurposes.recommendationId, recId))
+        ).length;
+        totalRecAudienceMemberships += (
+          await dbClient.db
+            .select()
+            .from(recommendationsTargetAudienceTypes)
+            .where(eq(recommendationsTargetAudienceTypes.recommendationId, recId))
+        ).length;
+        totalRecLocationMemberships += (
+          await dbClient.db
+            .select()
+            .from(recommendationsLocationScopes)
+            .where(eq(recommendationsLocationScopes.recommendationId, recId))
+        ).length;
+      }
+      expect(totalRecThemeMemberships).toBeGreaterThan(0);
+      expect(totalRecPurposeMemberships).toBeGreaterThan(0);
+      expect(totalRecAudienceMemberships).toBeGreaterThan(0);
+      expect(totalRecLocationMemberships).toBeGreaterThan(0);
     },
     90_000,
   );

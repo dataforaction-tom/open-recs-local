@@ -1,0 +1,11 @@
+{
+  "summary": "Policy paper outlining recommended changes to the funding regime for small charities.",
+  "authors": ["Policy Working Group"],
+  "publication_date": "2024-11-15",
+  "org_owner": "Example Policy Institute",
+  "thematic_area_slugs": ["governance", "philanthropy"],
+  "source_type_slugs": ["policy-paper"],
+  "purpose_slugs": ["policy-development", "advocacy"],
+  "role_relevance_slugs": ["policy-maker"],
+  "target_audience_type_slugs": ["government-national", "funders"]
+}

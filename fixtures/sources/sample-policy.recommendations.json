@@ -1,17 +1,32 @@
-[
-  {
-    "title": "Adopt a written conflict-of-interest policy",
-    "full_text": "Adopt a written conflict-of-interest policy reviewed annually by trustees.",
-    "thematic_area_slug": "governance"
-  },
-  {
-    "title": "Provide trustee induction training",
-    "full_text": "Provide induction training for all new trustees within 60 days of appointment.",
-    "thematic_area_slug": "governance"
-  },
-  {
-    "title": "Publish trustee attendance statistics",
-    "full_text": "Publish trustee attendance statistics alongside the annual report.",
-    "thematic_area_slug": "engagement"
-  }
-]
+{
+  "recommendations": [
+    {
+      "title": "Index small-charity grants to inflation",
+      "body": "Index small-charity grants to inflation so funding values do not erode in real terms. Apply the index annually using the published CPI rate.",
+      "thematic_area_slugs": ["philanthropy", "economic-development"],
+      "purpose_slugs": ["policy-development", "advocacy"],
+      "target_audience_type_slugs": ["funders", "government-national"],
+      "location_scope_slugs": ["national"],
+      "priority_timescale_slug": "medium-term",
+      "target_organization": "HM Treasury",
+      "notes": "Headline policy recommendation.",
+      "confidence": "high",
+      "page_start": 1,
+      "page_end": 1
+    },
+    {
+      "title": "Simplify the reporting burden for grants under £50k",
+      "body": "Simplify the reporting burden for grants under fifty thousand pounds. A short outcomes summary should suffice; replace line-by-line financial reporting with attestation.",
+      "thematic_area_slugs": ["governance", "philanthropy"],
+      "purpose_slugs": ["practice-service-improvement"],
+      "target_audience_type_slugs": ["funders"],
+      "location_scope_slugs": ["national"],
+      "priority_timescale_slug": "short-term",
+      "target_organization": null,
+      "notes": "Supporting recommendation.",
+      "confidence": "medium",
+      "page_start": 2,
+      "page_end": 2
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "summary": "Annual governance and risk review for the sample organisation, covering board-level risk oversight, safeguarding reporting, and auditor rotation.",
+  "authors": ["Sample Risk Committee"],
+  "publication_date": "2025-03-01",
+  "org_owner": "Sample Charity Limited",
+  "thematic_area_slugs": ["governance", "data"],
+  "source_type_slugs": ["annual-review"],
+  "purpose_slugs": ["strategy", "policy-development"],
+  "role_relevance_slugs": ["senior-leader", "policy-maker"],
+  "target_audience_type_slugs": ["funders", "commissioning-bodies"]
+}

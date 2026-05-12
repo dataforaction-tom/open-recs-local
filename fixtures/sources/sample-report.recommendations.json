@@ -1,17 +1,46 @@
-[
-  {
-    "title": "Establish a board-level risk committee",
-    "full_text": "Establish a board-level risk committee to meet quarterly.",
-    "thematic_area_slug": "governance"
-  },
-  {
-    "title": "Publish an annual safeguarding report",
-    "full_text": "Publish an annual safeguarding report within three months of year-end.",
-    "thematic_area_slug": "safeguarding"
-  },
-  {
-    "title": "Rotate external auditors regularly",
-    "full_text": "Rotate external auditors at least every seven financial years.",
-    "thematic_area_slug": "finance"
-  }
-]
+{
+  "recommendations": [
+    {
+      "title": "Establish a board-level risk committee",
+      "body": "Establish a board-level risk committee to meet quarterly. The committee should report to the trustees and own the organisational risk register.",
+      "thematic_area_slugs": ["governance"],
+      "purpose_slugs": ["policy-development"],
+      "target_audience_type_slugs": ["funders"],
+      "location_scope_slugs": ["national"],
+      "priority_timescale_slug": "medium-term",
+      "target_organization": "Sample Charity Limited",
+      "notes": "Recommendation 1 of the annual review.",
+      "confidence": "high",
+      "page_start": 1,
+      "page_end": 1
+    },
+    {
+      "title": "Publish an annual safeguarding report",
+      "body": "Publish an annual safeguarding report within three months of year-end. The report should cover incidents, training completion rates, and remedial actions.",
+      "thematic_area_slugs": ["governance"],
+      "purpose_slugs": ["practice-service-improvement"],
+      "target_audience_type_slugs": ["communities", "funders"],
+      "location_scope_slugs": ["national"],
+      "priority_timescale_slug": "short-term",
+      "target_organization": null,
+      "notes": "Recommendation 2 of the annual review.",
+      "confidence": "high",
+      "page_start": 1,
+      "page_end": 2
+    },
+    {
+      "title": "Rotate external auditors regularly",
+      "body": "Rotate external auditors at least every seven financial years. Document the rotation policy in the audit-committee terms of reference.",
+      "thematic_area_slugs": ["governance"],
+      "purpose_slugs": ["policy-development"],
+      "target_audience_type_slugs": ["funders"],
+      "location_scope_slugs": ["national"],
+      "priority_timescale_slug": "long-term",
+      "target_organization": null,
+      "notes": "Recommendation 3 of the annual review.",
+      "confidence": "medium",
+      "page_start": 2,
+      "page_end": 2
+    }
+  ]
+}
