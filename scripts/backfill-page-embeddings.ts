@@ -16,7 +16,7 @@
  * Output: one line per source enqueued, with the source slug and the
  * number of NULL pages it has, plus a final tally.
  */
-import { isNull, sql as drizzleSql } from 'drizzle-orm';
+import { and, eq, isNull, sql as drizzleSql } from 'drizzle-orm';
 import { createDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { createQueue } from '@/lib/jobs/queue';
@@ -28,7 +28,13 @@ async function main(): Promise<void> {
   const queue = await createQueue({ connectionString: env.DATABASE_URL });
 
   try {
-    // Count NULL pages per source, joined back to sources for the slug.
+    // Restrict to sources that have already reached `ready`. parseHandler
+    // inserts source_pages before extraction completes, so an in-flight
+    // source (status `parsing` / `extracting` / `embedding`) will show up
+    // here with NULL page embeddings — enqueuing `source.embed` for it
+    // would race the natural pipeline and flip status to `ready` while
+    // extraction is still running. Failed sources are also skipped: their
+    // partial pages shouldn't suddenly promote the row to `ready`.
     const rows = await db
       .select({
         sourceId: sources.id,
@@ -38,7 +44,7 @@ async function main(): Promise<void> {
       })
       .from(sources)
       .innerJoin(sourcePages, drizzleSql`${sourcePages.sourceId} = ${sources.id}`)
-      .where(isNull(sourcePages.embedding))
+      .where(and(isNull(sourcePages.embedding), eq(sources.status, 'ready')))
       .groupBy(sources.id, sources.slug, sources.status);
 
     if (rows.length === 0) {

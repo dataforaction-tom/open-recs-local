@@ -10,6 +10,11 @@ const EXAMPLES = [
   'Compare auditor rotation recommendations across the corpus.',
 ];
 
+// Mirror the server-side cap in /api/chat-search (history.max(20)). Without
+// trimming the client sends the full transcript and starts getting 400s
+// after roughly ten turns.
+const MAX_HISTORY = 20;
+
 type Retrieved = ReadonlyArray<{ slug: string; page: number }>;
 
 function parseRetrievedHeader(header: string | null): Retrieved {
@@ -50,7 +55,9 @@ export function ChatView() {
 
       const userMessage: ChatMessage = { id: nextId(), role: 'user', content: trimmed };
       const assistantId = nextId();
-      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+      const history = messages
+        .slice(-MAX_HISTORY)
+        .map((m) => ({ role: m.role, content: m.content }));
       setMessages((prev) => [
         ...prev,
         userMessage,

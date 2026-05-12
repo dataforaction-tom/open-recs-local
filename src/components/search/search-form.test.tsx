@@ -39,4 +39,24 @@ describe('SearchForm', () => {
       'safeguarding',
     );
   });
+
+  it('preserves ?source= and ?theme= filters when submitting or toggling mode', async () => {
+    push.mockClear();
+    currentSearch =
+      'q=audit&source=00000000-0000-0000-0000-000000000001&theme=00000000-0000-0000-0000-000000000002';
+    render(<SearchForm />);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: 'Search' }));
+    const submitUrl = push.mock.calls.at(-1)?.[0] as string;
+    expect(submitUrl).toContain('source=00000000-0000-0000-0000-000000000001');
+    expect(submitUrl).toContain('theme=00000000-0000-0000-0000-000000000002');
+
+    push.mockClear();
+    await user.click(screen.getByRole('button', { name: /toggle search mode/i }));
+    const toggleUrl = push.mock.calls.at(-1)?.[0] as string;
+    expect(toggleUrl).toContain('source=00000000-0000-0000-0000-000000000001');
+    expect(toggleUrl).toContain('theme=00000000-0000-0000-0000-000000000002');
+    expect(toggleUrl).toContain('mode=keyword');
+  });
 });
