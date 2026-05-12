@@ -10,6 +10,14 @@ import {
 import { getLatestStatus } from '@/lib/repositories/recommendation-status';
 import { listProgressUpdates } from '@/lib/repositories/progress-update';
 import { listEvidenceTypes, listProgressRatings } from '@/lib/repositories/taxonomy';
+import {
+  listRecommendationLocationScopes,
+  listRecommendationPurposes,
+  listRecommendationTargetAudienceTypes,
+  listRecommendationThematicAreas,
+} from '@/lib/repositories/recommendation-tags';
+import { TagChips } from '@/components/tags/tag-chips';
+import Link from 'next/link';
 import type { RepoContext } from '@/lib/repositories/types';
 import { RecommendationDetailHeader } from '@/components/recommendations/recommendation-detail-header';
 import { SimilarRecommendations } from '@/components/recommendations/similar-recommendations';
@@ -35,15 +43,29 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
     const auth = await providers.auth.getContext(req);
     const ctx: RepoContext = { db: client.db, auth };
 
-    const [rec, similar, latestStatus, updates, evidenceTypes, progressRatings] =
-      await Promise.all([
-        findRecommendationById(ctx, id),
-        findSimilarRecommendations(ctx, id, 5),
-        getLatestStatus(ctx, id),
-        listProgressUpdates(ctx, id),
-        listEvidenceTypes(ctx),
-        listProgressRatings(ctx),
-      ]);
+    const [
+      rec,
+      similar,
+      latestStatus,
+      updates,
+      evidenceTypes,
+      progressRatings,
+      themes,
+      purposes,
+      audiences,
+      locations,
+    ] = await Promise.all([
+      findRecommendationById(ctx, id),
+      findSimilarRecommendations(ctx, id, 5),
+      getLatestStatus(ctx, id),
+      listProgressUpdates(ctx, id),
+      listEvidenceTypes(ctx),
+      listProgressRatings(ctx),
+      listRecommendationThematicAreas(ctx, id),
+      listRecommendationPurposes(ctx, id),
+      listRecommendationTargetAudienceTypes(ctx, id),
+      listRecommendationLocationScopes(ctx, id),
+    ]);
 
     if (!rec) notFound();
 
@@ -67,11 +89,30 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4 pt-6">
-            <p className="max-w-[58rem] font-serif text-base italic leading-relaxed text-muted-foreground">
-              More metadata will land here in later passes — thematic tags, status timeline,
-              ownership badges. For now, the full text appears above; everything else lives
-              in the other tabs.
-            </p>
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-medium">Tags</h2>
+              <Link
+                href={`/recommendations/${id}/edit`}
+                className="text-sm text-muted-foreground underline-offset-4 hover:text-accent hover:underline"
+              >
+                Edit
+              </Link>
+            </div>
+            {themes.length === 0 &&
+            purposes.length === 0 &&
+            audiences.length === 0 &&
+            locations.length === 0 ? (
+              <p className="font-serif text-sm italic text-muted-foreground">
+                No tags yet — open the edit page to add some.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <TagChips tags={themes} />
+                <TagChips tags={purposes} />
+                <TagChips tags={audiences} />
+                <TagChips tags={locations} />
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="similar" className="pt-6">
