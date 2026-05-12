@@ -84,13 +84,13 @@ describe('schema — taxonomy + misc', () => {
     expect(await tableExists('analytics_cache')).toBe(true);
   });
 
-  it('thematic_areas.color_hex is text and NOT NULL', async () => {
+  it('thematic_areas.color_hex is text and nullable (matches other taxonomy axes)', async () => {
     const rows = await sql<{ data_type: string; is_nullable: string }[]>`
       select data_type, is_nullable from information_schema.columns
       where table_name = 'thematic_areas' and column_name = 'color_hex'
     `;
     expect(rows[0]?.data_type).toBe('text');
-    expect(rows[0]?.is_nullable).toBe('NO');
+    expect(rows[0]?.is_nullable).toBe('YES');
   });
 
   it('recommendations_thematic_areas has composite primary key on (recommendation_id, thematic_area_id)', async () => {
