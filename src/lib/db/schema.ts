@@ -192,6 +192,12 @@ export const recommendations = pgTable(
     title: text('title').notNull(),
     body: text('body').notNull(),
     pageAnchor: integer('page_anchor'),
+    targetOrganization: text('target_organization'),
+    priorityTimescaleId: uuid('priority_timescale_id').references(() => priorityTimescales.id, {
+      onDelete: 'set null',
+    }),
+    notes: text('notes'),
+    confidence: text('confidence', { enum: ['high', 'medium', 'low'] }),
     embedding: vector('embedding', { dimensions: EMBEDDING_DIM }),
     embeddingModel: text('embedding_model'),
     tsv: tsvector('tsv').generatedAlwaysAs(
