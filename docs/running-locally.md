@@ -211,3 +211,18 @@ For anything touching the schema or the job pipeline, the Testcontainers-backed 
 | Reset email never arrives in hosted mode | `EMAIL_PROVIDER=console` (the default). Set `EMAIL_PROVIDER=resend` + the two `RESEND_*` vars. |
 | Embedding column type mismatch | The schema's vector dimension (default 768) must match what the embedding model emits. Re-embed if you swap models. |
 | Search returns empty | Confirm `pnpm db:seed` ran (the taxonomy rows are required by some queries) and that the upload pipeline reached `status=ready` on the dashboard. |
+
+---
+
+## Extraction quality — local vs. hosted models
+
+The two-pass extraction pipeline shipped in 1.1 asks the LLM to (a) summarise the document and tag it on five axes, and (b) extract every recommendation with full multi-axis tagging + confidence. A small local model like `llama3.1:8b` can complete both passes, but accuracy drops noticeably on long documents and the LLM may coin new tags rather than picking from the listed taxonomy.
+
+The recommended split:
+
+- **Local mode**: `LLM_PROVIDER=openai-compatible`, `LLM_MODEL=llama3.1:8b` (or your installed Ollama model). Free, runs on the Mac mini.
+- **Hosted mode**: `LLM_PROVIDER=anthropic`, `LLM_MODEL=claude-haiku-4-5`. Cents per document; meaningfully better recall + accuracy on the structured-output paths.
+
+The `CHAT_*` env split shipped in 1.0 lets you run a heavyweight extract model alongside a lightweight streaming chat model — useful if you want Claude for extract and `qwen2.5:0.5b` (local) for chat.
+
+Unknown tags coined by the extract LLM land as `unverified=true` in the taxonomy and surface on `/admin/tags` for promotion / rename / merge / delete. Admin operators should sweep that queue periodically.
