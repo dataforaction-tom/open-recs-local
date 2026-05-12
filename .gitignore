@@ -29,6 +29,11 @@ HANDOFF.md
 # local fs storage uploads (STORAGE_FS_PATH default)
 /.data/
 
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
