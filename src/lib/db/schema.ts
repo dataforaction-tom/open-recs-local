@@ -12,6 +12,7 @@ import {
   uniqueIndex,
   customType,
   primaryKey,
+  date,
 } from 'drizzle-orm/pg-core';
 
 export const EMBEDDING_DIM = 768 as const;
@@ -121,6 +122,13 @@ export const sources = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     slug: text('slug').notNull().unique(),
     title: text('title').notNull(),
+    summary: text('summary'),
+    authors: text('authors').array().notNull().default(sql`'{}'::text[]`),
+    publicationDate: date('publication_date', { mode: 'date' }),
+    orgOwner: text('org_owner'),
+    originalUrl: text('original_url'),
+    attachmentUrl: text('attachment_url'),
+    datasets: jsonb('datasets').$type<Array<{ description: string; url: string }>>().notNull().default([]),
     canonicalMarkdown: text('canonical_markdown'),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}).notNull(),
     isPrivate: boolean('is_private').notNull().default(false),
