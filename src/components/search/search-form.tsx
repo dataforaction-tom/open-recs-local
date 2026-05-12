@@ -5,7 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useSearchParamsState } from '@/lib/hooks/use-search-params-state';
 
-const DEFAULTS = { q: '', mode: 'hybrid' as 'hybrid' | 'keyword' };
+// `source` and `theme` aren't exposed in the form UI but the SearchPage
+// reads them as backend filters. Tracking them here (with empty-string
+// defaults that the hook strips from the URL) keeps shared filtered links
+// intact when the user re-submits or toggles mode.
+const DEFAULTS = {
+  q: '',
+  mode: 'hybrid' as 'hybrid' | 'keyword',
+  source: '',
+  theme: '',
+};
 
 export function SearchForm() {
   const [state, setState] = useSearchParamsState<typeof DEFAULTS>(DEFAULTS);
