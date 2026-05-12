@@ -1,4 +1,5 @@
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
+import { recommendations } from '../db/schema';
 import { type RepoContext } from './types';
 
 /**
@@ -275,4 +276,79 @@ export async function listRecentRecommendations(
     sourceTitle: row.sourceTitle,
     createdAt: row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt),
   }));
+}
+
+/**
+ * Edit-page projection: pulls the full set of editable columns for a
+ * recommendation, gated by the same auth filter as `findRecommendationById`.
+ */
+export type RecommendationForEdit = {
+  id: string;
+  title: string;
+  body: string;
+  pageAnchor: number | null;
+  targetOrganization: string | null;
+  priorityTimescaleId: string | null;
+  notes: string | null;
+  confidence: 'high' | 'medium' | 'low' | null;
+};
+
+export async function findRecommendationByIdForEdit(
+  ctx: RepoContext,
+  id: string,
+): Promise<RecommendationForEdit | null> {
+  if (!UUID_RE.test(id)) return null;
+  const auth = composeAuthFilter(ctx);
+  const rows = await ctx.db.execute<RecommendationForEdit>(sql`
+    SELECT
+      r.id::text                AS "id",
+      r.title                   AS "title",
+      r.body                    AS "body",
+      r.page_anchor             AS "pageAnchor",
+      r.target_organization     AS "targetOrganization",
+      r.priority_timescale_id   AS "priorityTimescaleId",
+      r.notes                   AS "notes",
+      r.confidence              AS "confidence"
+    FROM recommendations r
+    JOIN sources s ON s.id = r.source_id
+    WHERE r.id = ${id}::uuid
+      AND ${auth}
+    LIMIT 1
+  `);
+  return rows[0] ?? null;
+}
+
+/**
+ * UPDATE direct columns on a recommendation row. Tags + M2M memberships
+ * are handled separately by the calling action via the per-axis
+ * `replaceRecommendation*` repo functions.
+ */
+export type UpdateRecommendationCoreInput = {
+  title: string;
+  body: string;
+  targetOrganization: string | null;
+  priorityTimescaleId: string | null;
+  confidence: 'high' | 'medium' | 'low' | null;
+  notes: string | null;
+  pageAnchor: number | null;
+};
+
+export async function updateRecommendationCore(
+  ctx: RepoContext,
+  recommendationId: string,
+  input: UpdateRecommendationCoreInput,
+): Promise<void> {
+  await ctx.db
+    .update(recommendations)
+    .set({
+      title: input.title,
+      body: input.body,
+      targetOrganization: input.targetOrganization,
+      priorityTimescaleId: input.priorityTimescaleId,
+      confidence: input.confidence,
+      notes: input.notes,
+      pageAnchor: input.pageAnchor,
+      updatedAt: new Date(),
+    })
+    .where(eq(recommendations.id, recommendationId));
 }
