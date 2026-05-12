@@ -330,7 +330,7 @@ describe('extractHandler — failure path', () => {
       async generateText() {
         return { text: '' };
       },
-      async generateStructured(): Promise<LlmStructuredOutput<unknown>> {
+      async generateStructured<T>(): Promise<LlmStructuredOutput<T>> {
         throw new Error('synthetic LLM failure');
       },
     };
