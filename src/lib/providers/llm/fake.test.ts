@@ -38,28 +38,32 @@ describe('fake LLM provider', () => {
 
   it('falls back to <key>.recommendations.json in fixturesDir when no response registered', async () => {
     const tmp = await mkdtemp(path.join(os.tmpdir(), 'llm-fixtures-'));
-    const payload = [
-      { title: 'Rec A', full_text: 'Do A.', thematic_area_slug: 'governance' },
-    ];
+    const payload = {
+      recommendations: [{ title: 'Rec A', body: 'Do A in some way.', confidence: 'high' }],
+    };
     await writeFile(path.join(tmp, 'sample.recommendations.json'), JSON.stringify(payload), 'utf8');
 
     const llm = createFakeLlm({ fixturesDir: tmp });
-    const schema = z.array(
-      z.object({ title: z.string(), full_text: z.string(), thematic_area_slug: z.string() }),
-    );
+    const schema = z.object({
+      recommendations: z.array(
+        z.object({ title: z.string(), body: z.string(), confidence: z.string() }),
+      ),
+    });
     const out = await llm.generateStructured({ prompt: '', schema, key: 'sample' });
-    expect(out.value).toHaveLength(1);
-    expect(out.value[0]?.title).toBe('Rec A');
+    expect(out.value.recommendations).toHaveLength(1);
+    expect(out.value.recommendations[0]?.title).toBe('Rec A');
   });
 
   it('reads the shipped sample-report fixture by default (FIXTURES_DIR resolution)', async () => {
     const llm = createFakeLlm();
-    const schema = z.array(
-      z.object({ title: z.string(), full_text: z.string(), thematic_area_slug: z.string() }),
-    );
+    const schema = z.object({
+      recommendations: z
+        .array(z.object({ title: z.string(), body: z.string() }).passthrough())
+        .min(1),
+    });
     const out = await llm.generateStructured({ prompt: '', schema, key: 'sample-report' });
-    expect(out.value.length).toBeGreaterThanOrEqual(2);
-    expect(out.value[0]?.thematic_area_slug).toBe('governance');
+    expect(out.value.recommendations.length).toBeGreaterThanOrEqual(2);
+    expect(out.value.recommendations[0]?.title).toBeTypeOf('string');
   });
 
   it('throws a descriptive error when fixture file is malformed JSON', async () => {
@@ -81,5 +85,28 @@ describe('fake LLM provider', () => {
     await expect(
       llm.generateStructured({ prompt: '', schema, key: 'missing' }),
     ).rejects.toThrow('fake LLM: no structured response registered for key="missing"');
+  });
+
+  describe('Pass 1 metadata fixture lookup', () => {
+    it('loads <stem>.metadata.json when key is "<stem>:metadata"', async () => {
+      const llm = createFakeLlm({ fixturesDir: path.resolve(process.cwd(), 'fixtures/sources') });
+      const schema = z.object({ summary: z.string().nullable(), authors: z.array(z.string()) });
+      const out = await llm.generateStructured({
+        prompt: 'p',
+        schema,
+        key: 'sample-report:metadata',
+      });
+      expect(out.value.summary).toBeTypeOf('string');
+      expect(Array.isArray(out.value.authors)).toBe(true);
+    });
+
+    it('still loads <stem>.recommendations.json for plain "<stem>" keys', async () => {
+      const llm = createFakeLlm({ fixturesDir: path.resolve(process.cwd(), 'fixtures/sources') });
+      const schema = z.object({
+        recommendations: z.array(z.object({ title: z.string(), body: z.string() }).passthrough()),
+      });
+      const out = await llm.generateStructured({ prompt: 'p', schema, key: 'sample-report' });
+      expect(out.value.recommendations.length).toBeGreaterThan(0);
+    });
   });
 });

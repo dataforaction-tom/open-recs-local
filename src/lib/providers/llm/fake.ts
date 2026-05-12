@@ -6,8 +6,9 @@ export type FakeLlmConfig = {
   /** Map of key → object, used by generateStructured. Wins over fixture files. */
   structuredResponses?: Record<string, unknown>;
   /**
-   * Directory holding fixture `<key>.recommendations.json` files used as a
-   * fallback when `structuredResponses` has no entry for the key.
+   * Directory holding fixture JSON files. Two filename conventions:
+   *   - `<stem>.metadata.json`        — Pass 1 source-metadata fixture
+   *   - `<stem>.recommendations.json` — Pass 2 recommendations fixture
    * Resolution order: explicit config → `FIXTURES_DIR` env → `<cwd>/fixtures/sources`.
    */
   fixturesDir?: string;
@@ -20,14 +21,28 @@ function resolveFixturesDir(config: FakeLlmConfig): string {
   return path.resolve(process.cwd(), 'fixtures/sources');
 }
 
+/**
+ * Map a structured-call key onto a fixture file path. Keys ending in
+ * `:metadata` route to `<stem>.metadata.json`; all other keys route to
+ * `<stem>.recommendations.json`. The suffix is the only signal: the
+ * handler controls it explicitly per pass.
+ */
+function fixturePathFor(fixturesDir: string, key: string): string {
+  if (key.endsWith(':metadata')) {
+    const stem = key.slice(0, -':metadata'.length);
+    return path.join(fixturesDir, `${stem}.metadata.json`);
+  }
+  return path.join(fixturesDir, `${key}.recommendations.json`);
+}
+
 async function loadFixtureResponse(fixturesDir: string, key: string): Promise<unknown | undefined> {
-  const fixturePath = path.join(fixturesDir, `${key}.recommendations.json`);
+  const fixturePath = fixturePathFor(fixturesDir, key);
   let raw: string;
   try {
     raw = await readFile(fixturePath, 'utf8');
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-    throw err; // permission/IO errors should surface
+    throw err;
   }
   try {
     return JSON.parse(raw);
@@ -47,27 +62,15 @@ export function createFakeLlm(config: FakeLlmConfig = {}): LlmProvider {
       const key = input.key ?? 'default';
       let raw: unknown = responses[key];
       if (raw === undefined) {
-        // Fallback: treat `key` as a source stem and read the matching recs fixture.
-        // Resolved per-call so tests can mutate FIXTURES_DIR between constructions.
+        // Fallback: derive a fixture path from the key.
         raw = await loadFixtureResponse(resolveFixturesDir(config), key);
       }
       if (raw === undefined) {
         throw new Error(`fake LLM: no structured response registered for key="${key}"`);
       }
-      // Fixture-shape reconciliation: Task 2 fixtures on disk are flat arrays
-      // (`[{ title, full_text, ... }]`) but Task 9's ExtractionSchema wraps
-      // the array under `{ recommendations: [...] }`. Rather than churning
-      // the fixtures, if the caller's schema rejects the raw value AND the
-      // raw value is an array, retry once with the array wrapped.
-      const first = input.schema.safeParse(raw);
-      if (first.success) return { value: first.data };
-      if (Array.isArray(raw)) {
-        const wrapped = input.schema.safeParse({ recommendations: raw });
-        if (wrapped.success) return { value: wrapped.data };
-      }
-      // Re-throw the original zod error so schema-violation failures still
-      // surface with a useful message.
-      throw first.error;
+      const parsed = input.schema.safeParse(raw);
+      if (parsed.success) return { value: parsed.data };
+      throw parsed.error;
     },
   };
 }
