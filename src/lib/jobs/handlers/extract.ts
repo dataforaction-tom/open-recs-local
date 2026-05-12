@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { JobContext } from '../context';
 import type { QueuePayloads } from '../types';
 import {
@@ -23,24 +23,32 @@ const MAX_PROMPT_MARKDOWN = 100_000;
 // asked for "recommendations", rather than an object wrapping the array.
 // The skeleton anchors the structure; the openai-compat adapter adds its
 // own "respond with raw JSON only" instruction on top.
-const SYSTEM_PROMPT = [
-  'You are an assistant extracting structured recommendations from policy / report documents.',
-  'Return a JSON object with a top-level "recommendations" array. Do not return a bare array.',
-  'Do not invent recommendations not grounded in the document.',
-  '',
-  'The exact JSON shape is:',
-  '{',
-  '  "recommendations": [',
-  '    {',
-  '      "title": "Short title (5+ chars)",',
-  '      "full_text": "Full recommendation text (20+ chars)",',
-  '      "thematic_area_slug": "optional taxonomy slug",',
-  '      "page_start": null,',
-  '      "page_end": null',
-  '    }',
-  '  ]',
-  '}',
-].join('\n');
+function buildSystemPrompt(taxonomySlugs: readonly string[]): string {
+  const slugList =
+    taxonomySlugs.length > 0
+      ? taxonomySlugs.map((s) => `"${s}"`).join(', ')
+      : '(taxonomy is empty — omit thematic_area_slug)';
+  return [
+    'You are an assistant extracting structured recommendations from policy / report documents.',
+    'Return a JSON object with a top-level "recommendations" array. Do not return a bare array.',
+    'Do not invent recommendations not grounded in the document.',
+    '',
+    `For "thematic_area_slug", pick exactly one of: ${slugList}. Use null or omit the field if none clearly applies — do not invent new slugs.`,
+    '',
+    'The exact JSON shape is:',
+    '{',
+    '  "recommendations": [',
+    '    {',
+    '      "title": "Short title (5+ chars)",',
+    '      "full_text": "Full recommendation text (20+ chars)",',
+    '      "thematic_area_slug": "one of the slugs listed above, or null",',
+    '      "page_start": null,',
+    '      "page_end": null',
+    '    }',
+    '  ]',
+    '}',
+  ].join('\n');
+}
 
 function buildUserPrompt(markdown: string): string {
   const truncated =
@@ -121,26 +129,30 @@ export async function extractHandler(
       .limit(1);
     const fixtureKey = fileRows[0] ? fixtureKeyFromStorageKey(fileRows[0].storageKey) : sourceRow.slug;
 
+    // Load the taxonomy slugs up front so the system prompt can list them
+    // explicitly — a real LLM can't pick the right slug if it doesn't know
+    // which ones are valid. The fake LLM ignores `system` (fixture-driven)
+    // so this is inert for tests.
+    const taxonomyRows = await ctx.db
+      .select({ id: thematicAreas.id, slug: thematicAreas.slug })
+      .from(thematicAreas);
+    const taxonomySlugs = taxonomyRows.map((r) => r.slug);
+
     const { value } = await ctx.providers.llm.generateStructured({
       prompt: buildUserPrompt(canonicalMarkdown),
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(taxonomySlugs),
       schema: ExtractionSchema,
       key: fixtureKey,
     });
 
     const recs: RecommendationInput[] = value.recommendations;
 
-    // Resolve the slugs we actually know about so we can build join rows in
-    // one pass and surface the unknowns as a warning.
+    // Resolve the slugs the LLM returned to area ids. Slugs that don't
+    // match the taxonomy are skipped (no auto-create, no failure).
     const uniqueSlugs = Array.from(
       new Set(recs.map((r) => r.thematic_area_slug).filter((s): s is string => !!s)),
     );
-    const knownAreas = uniqueSlugs.length
-      ? await ctx.db
-          .select({ id: thematicAreas.id, slug: thematicAreas.slug })
-          .from(thematicAreas)
-          .where(inArray(thematicAreas.slug, uniqueSlugs))
-      : [];
+    const knownAreas = taxonomyRows.filter((a) => uniqueSlugs.includes(a.slug));
     const slugToAreaId = new Map(knownAreas.map((a) => [a.slug, a.id]));
     const unknownSlugs = uniqueSlugs.filter((s) => !slugToAreaId.has(s));
 

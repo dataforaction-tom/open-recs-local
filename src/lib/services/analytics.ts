@@ -12,11 +12,22 @@ import {
 } from './analytics-sql';
 
 /**
- * Read a cache key; on miss, compute it, store the result, and return it.
- * Auth: the cache itself is open-read; the *page* calling this is what
- * gates visibility. `compute` runs with whatever ctx the caller passed —
- * usually a system ctx (cron) or a system-equivalent admin ctx for global
- * pages. Per-source pages pass the request ctx so the auth filter narrows.
+ * How long a cached entry is trusted before it's recomputed on read. The
+ * 02:00 cron is a periodic full refresh; this TTL is the freshness
+ * guarantee in between — without it a cache row populated when the DB was
+ * empty would keep serving zeros for up to 24 hours after new data lands.
+ * Five minutes is a round number that's fast enough to feel live during
+ * interactive use and long enough to keep hot pages cheap under traffic.
+ */
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Read a cache key; on miss OR stale hit, compute it, store the result,
+ * and return it. Auth: the cache itself is open-read; the *page* calling
+ * this is what gates visibility. `compute` runs with whatever ctx the
+ * caller passed — usually a system ctx (cron) or a system-equivalent
+ * admin ctx for global pages. Per-source pages pass the request ctx so
+ * the auth filter narrows.
  */
 export async function getOrCompute<T>(
   ctx: RepoContext,
@@ -24,7 +35,9 @@ export async function getOrCompute<T>(
   compute: () => Promise<T>,
 ): Promise<T> {
   const hit = await getCached<T>(ctx, key);
-  if (hit) return hit.value;
+  if (hit && Date.now() - hit.computedAt.getTime() < CACHE_TTL_MS) {
+    return hit.value;
+  }
   const value = await compute();
   await setCached(ctx, key, value);
   return value;
