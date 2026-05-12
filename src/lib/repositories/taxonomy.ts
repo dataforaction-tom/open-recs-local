@@ -1,4 +1,4 @@
-import { asc, inArray } from 'drizzle-orm';
+import { asc, eq, inArray, sql as drizzleSql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import {
   evidenceTypes,
@@ -169,4 +169,158 @@ export async function listProgressRatings(
     .from(progressRatings)
     .orderBy(asc(progressRatings.weight));
   return rows;
+}
+
+// -- admin operations (for /admin/tags) -------------------------------------
+
+export const TAXONOMY_AXES = [
+  'thematic_areas',
+  'purposes',
+  'source_types',
+  'target_audience_types',
+  'location_scopes',
+  'role_relevances',
+  'priority_timescales',
+] as const;
+export type TaxonomyAxis = (typeof TAXONOMY_AXES)[number];
+
+const AXIS_TABLES: Record<TaxonomyAxis, PgTable> = {
+  thematic_areas: thematicAreas,
+  purposes,
+  source_types: sourceTypes,
+  target_audience_types: targetAudienceTypes,
+  location_scopes: locationScopes,
+  role_relevances: roleRelevances,
+  priority_timescales: priorityTimescales,
+};
+
+function tableForAxis(axis: TaxonomyAxis): PgTable {
+  return AXIS_TABLES[axis];
+}
+
+export async function listUnverifiedTags(
+  ctx: RepoContext,
+  axis: TaxonomyAxis,
+): Promise<TaxonomyRow[]> {
+  const table = tableForAxis(axis);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic taxonomy shape
+  const t = table as any;
+  const rows = await ctx.db
+    .select({
+      id: t.id,
+      slug: t.slug,
+      name: t.name,
+      colorHex: t.colorHex,
+      description: t.description,
+      unverified: t.unverified,
+    })
+    .from(table)
+    .where(eq(t.unverified, true))
+    .orderBy(asc(t.name));
+  return rows as TaxonomyRow[];
+}
+
+export async function promoteTag(
+  ctx: RepoContext,
+  axis: TaxonomyAxis,
+  tagId: string,
+): Promise<void> {
+  const table = tableForAxis(axis);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t = table as any;
+  await ctx.db.update(table).set({ unverified: false }).where(eq(t.id, tagId));
+}
+
+export async function renameTag(
+  ctx: RepoContext,
+  axis: TaxonomyAxis,
+  tagId: string,
+  newName: string,
+): Promise<void> {
+  const table = tableForAxis(axis);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t = table as any;
+  await ctx.db.update(table).set({ name: newName }).where(eq(t.id, tagId));
+}
+
+export async function deleteTag(
+  ctx: RepoContext,
+  axis: TaxonomyAxis,
+  tagId: string,
+): Promise<void> {
+  const table = tableForAxis(axis);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t = table as any;
+  await ctx.db.delete(table).where(eq(t.id, tagId));
+}
+
+// M2M tables affected by a merge, keyed by axis. Merge rewrites any join
+// row pointing at the source tag id to point at the target id (skipping
+// duplicates), then deletes the source tag.
+const AXIS_M2M_MERGE_TARGETS: Record<TaxonomyAxis, Array<{ table: string; column: string }>> = {
+  thematic_areas: [
+    { table: 'sources_thematic_areas', column: 'thematic_area_id' },
+    { table: 'recommendations_thematic_areas', column: 'thematic_area_id' },
+  ],
+  purposes: [
+    { table: 'sources_purposes', column: 'purpose_id' },
+    { table: 'recommendations_purposes', column: 'purpose_id' },
+  ],
+  source_types: [{ table: 'sources_source_types', column: 'source_type_id' }],
+  target_audience_types: [
+    { table: 'sources_target_audience_types', column: 'target_audience_type_id' },
+    { table: 'recommendations_target_audience_types', column: 'target_audience_type_id' },
+  ],
+  location_scopes: [{ table: 'recommendations_location_scopes', column: 'location_scope_id' }],
+  role_relevances: [{ table: 'sources_role_relevances', column: 'role_relevance_id' }],
+  priority_timescales: [], // single-FK on recommendations; handled separately
+};
+
+/**
+ * Merge an unverified tag into a target tag. Rewrites every M2M row that
+ * points at `fromId` to point at `toId` (deleting rows that would become
+ * duplicates), then deletes the `fromId` tag row.
+ *
+ * For `priority_timescales` (single-FK on recommendations.priority_timescale_id),
+ * we UPDATE the FK directly rather than rewriting an M2M join.
+ *
+ * The raw SQL escape hatches are deliberate — Drizzle's generic typing
+ * doesn't compose cleanly across heterogeneous M2M shapes, and `mergeTag`
+ * is exercised by Testcontainers-backed tests so correctness is enforced
+ * at runtime.
+ */
+export async function mergeTag(
+  ctx: RepoContext,
+  axis: TaxonomyAxis,
+  fromId: string,
+  toId: string,
+): Promise<void> {
+  if (fromId === toId) return;
+  if (axis === 'priority_timescales') {
+    await ctx.db.execute(
+      drizzleSql`UPDATE recommendations SET priority_timescale_id = ${toId}::uuid WHERE priority_timescale_id = ${fromId}::uuid`,
+    );
+    await deleteTag(ctx, axis, fromId);
+    return;
+  }
+  const m2mList = AXIS_M2M_MERGE_TARGETS[axis];
+  await ctx.db.transaction(async (tx) => {
+    for (const { table, column } of m2mList) {
+      // Delete rows where (parent, fromId) AND (parent, toId) BOTH exist —
+      // those would become primary-key duplicates after the UPDATE.
+      const parentColumn = table.startsWith('sources_') ? 'source_id' : 'recommendation_id';
+      await tx.execute(
+        drizzleSql.raw(
+          `DELETE FROM "${table}" t1 WHERE t1."${column}" = '${fromId}' AND EXISTS (SELECT 1 FROM "${table}" t2 WHERE t2."${parentColumn}" = t1."${parentColumn}" AND t2."${column}" = '${toId}')`,
+        ),
+      );
+      // Rewrite remaining (parent, fromId) rows to (parent, toId).
+      await tx.execute(
+        drizzleSql.raw(`UPDATE "${table}" SET "${column}" = '${toId}' WHERE "${column}" = '${fromId}'`),
+      );
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const t = tableForAxis(axis) as any;
+    await tx.delete(tableForAxis(axis)).where(eq(t.id, fromId));
+  });
 }
