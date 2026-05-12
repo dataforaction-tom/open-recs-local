@@ -121,6 +121,18 @@ test('hosted mode — signup, private upload, ownership request, admin approval'
   await viewerPage.goto(`/sources/${slug}`);
   await expect(viewerPage.getByText(/This source is private/i)).toHaveCount(0);
 
+  // -- 8. Admin edits the source title; viewer reloads and sees the new title.
+  await adminPage.goto(`/sources/${slug}/edit`);
+  const sourceTitleInput = adminPage.getByLabel(/^Title/i);
+  const newTitle = `${SOURCE_TITLE} — edited`;
+  await sourceTitleInput.fill(newTitle);
+  await adminPage.getByRole('button', { name: /^Save$/i }).click();
+  await adminPage.waitForLoadState('networkidle');
+  await viewerPage.goto(`/sources/${slug}`);
+  await expect(viewerPage.getByText(newTitle, { exact: false })).toBeVisible({
+    timeout: 10_000,
+  });
+
   await adminContext.close();
   await viewerContext.close();
 });
