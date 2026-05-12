@@ -71,6 +71,13 @@
       "when": 1778599996500,
       "tag": "0009_tense_jane_foster",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1778600042166,
+      "tag": "0010_sleepy_wind_dancer",
+      "breakpoints": true
     }
   ]
 }

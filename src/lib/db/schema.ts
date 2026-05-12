@@ -342,6 +342,144 @@ export const priorityTimescales = pgTable('priority_timescales', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// -- sources × axis M2M join tables ------------------------------------------
+
+export const sourcesThematicAreas = pgTable(
+  'sources_thematic_areas',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    thematicAreaId: uuid('thematic_area_id')
+      .notNull()
+      .references(() => thematicAreas.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.thematicAreaId] }),
+    byThematicAreaIdx: index('sources_thematic_areas_thematic_area_id_idx').on(t.thematicAreaId),
+  }),
+);
+
+export const sourcesSourceTypes = pgTable(
+  'sources_source_types',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    sourceTypeId: uuid('source_type_id')
+      .notNull()
+      .references(() => sourceTypes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.sourceTypeId] }),
+    bySourceTypeIdx: index('sources_source_types_source_type_id_idx').on(t.sourceTypeId),
+  }),
+);
+
+export const sourcesPurposes = pgTable(
+  'sources_purposes',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    purposeId: uuid('purpose_id')
+      .notNull()
+      .references(() => purposes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.purposeId] }),
+    byPurposeIdx: index('sources_purposes_purpose_id_idx').on(t.purposeId),
+  }),
+);
+
+export const sourcesRoleRelevances = pgTable(
+  'sources_role_relevances',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    roleRelevanceId: uuid('role_relevance_id')
+      .notNull()
+      .references(() => roleRelevances.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.roleRelevanceId] }),
+    byRoleRelevanceIdx: index('sources_role_relevances_role_relevance_id_idx').on(t.roleRelevanceId),
+  }),
+);
+
+export const sourcesTargetAudienceTypes = pgTable(
+  'sources_target_audience_types',
+  {
+    sourceId: uuid('source_id')
+      .notNull()
+      .references(() => sources.id, { onDelete: 'cascade' }),
+    targetAudienceTypeId: uuid('target_audience_type_id')
+      .notNull()
+      .references(() => targetAudienceTypes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.sourceId, t.targetAudienceTypeId] }),
+    byTargetAudienceTypeIdx: index('sources_target_audience_types_target_audience_type_id_idx').on(
+      t.targetAudienceTypeId,
+    ),
+  }),
+);
+
+// -- recommendations × axis M2M join tables ----------------------------------
+
+export const recommendationsPurposes = pgTable(
+  'recommendations_purposes',
+  {
+    recommendationId: uuid('recommendation_id')
+      .notNull()
+      .references(() => recommendations.id, { onDelete: 'cascade' }),
+    purposeId: uuid('purpose_id')
+      .notNull()
+      .references(() => purposes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.recommendationId, t.purposeId] }),
+    byPurposeIdx: index('recommendations_purposes_purpose_id_idx').on(t.purposeId),
+  }),
+);
+
+export const recommendationsTargetAudienceTypes = pgTable(
+  'recommendations_target_audience_types',
+  {
+    recommendationId: uuid('recommendation_id')
+      .notNull()
+      .references(() => recommendations.id, { onDelete: 'cascade' }),
+    targetAudienceTypeId: uuid('target_audience_type_id')
+      .notNull()
+      .references(() => targetAudienceTypes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.recommendationId, t.targetAudienceTypeId] }),
+    byTargetAudienceTypeIdx: index(
+      'recommendations_target_audience_types_target_audience_type_id_idx',
+    ).on(t.targetAudienceTypeId),
+  }),
+);
+
+export const recommendationsLocationScopes = pgTable(
+  'recommendations_location_scopes',
+  {
+    recommendationId: uuid('recommendation_id')
+      .notNull()
+      .references(() => recommendations.id, { onDelete: 'cascade' }),
+    locationScopeId: uuid('location_scope_id')
+      .notNull()
+      .references(() => locationScopes.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.recommendationId, t.locationScopeId] }),
+    byLocationScopeIdx: index('recommendations_location_scopes_location_scope_id_idx').on(
+      t.locationScopeId,
+    ),
+  }),
+);
+
 export const evidenceTypes = pgTable('evidence_types', {
   id: uuid('id').primaryKey().defaultRandom(),
   slug: text('slug').notNull().unique(),
