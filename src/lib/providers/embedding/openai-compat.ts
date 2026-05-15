@@ -38,7 +38,18 @@ export function createOpenAICompatEmbedding(
     model: config.model,
     dimensions: EMBEDDING_DIM,
     async embed(texts: string[]): Promise<number[][]> {
-      const { embeddings } = await embedMany({ model, values: texts });
+      // Defensive truncation: nomic-embed-text (and most local embedding
+      // models served via Ollama) cap input around 2k tokens despite the
+      // model card advertising 8k. Markdown tables tokenize ~3x denser
+      // than prose — a 3.6k-char page-of-tables overflows context even
+      // though prose at 4.1k chars embeds fine. 3000 chars is the highest
+      // cap that fits the worst case we've observed (TOC + figure-list
+      // pages with wide `| --- |` rule lines) while preserving the head
+      // of every page for retrieval. Recommendations are already far
+      // under this limit (title + body, typically <500 chars).
+      const TRUNCATE_AT = 3000;
+      const safe = texts.map((t) => (t.length > TRUNCATE_AT ? t.slice(0, TRUNCATE_AT) : t));
+      const { embeddings } = await embedMany({ model, values: safe });
       // Dimension guard: fail loud if the server returns vectors of a different
       // size than the schema expects. Without this the error surfaces as a
       // pgvector insert failure far from the real cause.

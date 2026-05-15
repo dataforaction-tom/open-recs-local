@@ -3,7 +3,7 @@ import type { OcrProvider, ParsedDocument, ParsedPage } from './types';
 /**
  * Real OCR adapter backed by a self-hosted Docling-serve container.
  *
- * Endpoint: `POST {baseUrl}/v1alpha/convert/file` — multipart form upload with
+ * Endpoint: `POST {baseUrl}/v1/convert/file` — multipart form upload with
  * the PDF bytes in the `files` field. The response shape varies slightly
  * between Docling-serve versions; see
  * https://github.com/docling-project/docling-serve for the authoritative
@@ -47,6 +47,11 @@ type DoclingResponse = {
 
 const IMAGE_RE = /!\[[^\]]*\]\(([^)]+)\)/g;
 
+// Unique marker we ask Docling to inject between pages. Picked to be
+// unambiguous in markdown — an HTML comment doesn't render and won't collide
+// with a thematic-break `---` line that legitimately appears in body text.
+const DOCLING_PAGE_BREAK = '<!-- docling-page-break -->';
+
 function extractImageRefs(markdown: string): string[] {
   const refs: string[] = [];
   // Use a fresh regex each call — sharing state across calls via the /g
@@ -61,7 +66,14 @@ function extractImageRefs(markdown: string): string[] {
 }
 
 function splitMarkdownIntoPages(markdown: string): ParsedPage[] {
-  const chunks = markdown.split(/\r?\n---\r?\n/);
+  // Prefer the docling-injected marker (set via md_page_break_placeholder
+  // when we call /v1/convert/file). If it's absent (older docling, or a
+  // future shape change), fall back to splitting on `\n---\n` so we keep
+  // some segmentation rather than emitting one huge page.
+  const re = markdown.includes(DOCLING_PAGE_BREAK)
+    ? new RegExp(`\\r?\\n${DOCLING_PAGE_BREAK}\\r?\\n`)
+    : /\r?\n---\r?\n/;
+  const chunks = markdown.split(re);
   return chunks.map((chunk, index) => {
     const trimmed = chunk.trim();
     return {
@@ -72,69 +84,121 @@ function splitMarkdownIntoPages(markdown: string): ParsedPage[] {
   });
 }
 
-function pagesFromResponse(pages: DoclingPage[]): ParsedPage[] {
-  return pages.map((page, index) => {
-    const pageNumber = page.page_no ?? page.page_number ?? index + 1;
-    const markdown = (page.markdown ?? page.md_content ?? '').trim();
-    return {
-      pageNumber,
-      markdown,
-      imageRefs: extractImageRefs(markdown),
-    };
+/**
+ * How many pages to request from docling-serve in a single call. Docling's
+ * Python worker pool crashes (clean exit code 0, body stream truncated, client
+ * sees `fetch failed`) when asked to convert long PDFs in one go — observed
+ * on a 177-page / 16 MB report. Chunked calls of this size complete reliably
+ * and the markdown can be concatenated transparently because every page
+ * boundary is already marked with {@link DOCLING_PAGE_BREAK}.
+ */
+const PAGE_CHUNK_SIZE = 50;
+
+function buildConvertForm(filename: string, bytes: Uint8Array, pageRange: [number, number]): FormData {
+  const form = new FormData();
+  // Copy into a fresh Uint8Array so the Blob constructor sees an
+  // ArrayBuffer-backed view (Node's Buffer may sit on a SharedArrayBuffer,
+  // which the DOM BlobPart type rejects under strict TS lib typings).
+  const view = new Uint8Array(bytes.byteLength);
+  view.set(bytes);
+  form.append('files', new Blob([view], { type: 'application/pdf' }), filename);
+  // Disable image-OCR + table-structure extraction by default. Both trigger
+  // crashes in docling-serve's worker pool on real-world PDFs with mixed
+  // image + text layouts. For PDFs with a selectable text layer (most modern
+  // policy / report exports) Docling falls back to text extraction which is
+  // fast, reliable, and produces useful markdown.
+  form.append('do_ocr', 'false');
+  form.append('do_table_structure', 'false');
+  // Drop embedded base64 images — `embedded` (the default) produces 5MB+
+  // payloads that overflow Postgres's tsvector limit (1MB) when stored in
+  // `sources.canonical_markdown`.
+  form.append('image_export_mode', 'placeholder');
+  // Page-break marker we split on downstream (see splitMarkdownIntoPages).
+  form.append('md_page_break_placeholder', `\n${DOCLING_PAGE_BREAK}\n`);
+  // Page range is required for chunking. `page_range` is sent as two repeated
+  // form fields ("start" then "end") rather than a single JSON array because
+  // docling-serve's FastAPI binding rejects the bracket form with HTTP 422.
+  form.append('page_range', String(pageRange[0]));
+  form.append('page_range', String(pageRange[1]));
+  return form;
+}
+
+async function convertChunk(
+  baseUrl: string,
+  filename: string,
+  bytes: Uint8Array,
+  pageRange: [number, number],
+): Promise<DoclingResponse> {
+  const res = await fetch(`${baseUrl}/v1/convert/file`, {
+    method: 'POST',
+    body: buildConvertForm(filename, bytes, pageRange),
   });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(
+      `Docling OCR failed: HTTP ${res.status} ${res.statusText}${text ? ` — ${text}` : ''}`,
+    );
+  }
+  return (await res.json()) as DoclingResponse;
 }
 
 export function createDoclingOcr(config: DoclingOcrConfig): OcrProvider {
-  // Trim trailing slash so `${baseUrl}/v1alpha/...` always yields a single slash.
+  // Trim trailing slash so `${baseUrl}/v1/...` always yields a single slash.
   const baseUrl = config.baseUrl.replace(/\/+$/, '');
 
   return {
     name: 'docling',
     async parseDocument({ filename, bytes }): Promise<ParsedDocument> {
-      const form = new FormData();
-      // Docling-serve expects the field name `files` (plural). See upstream README.
-      // Copy into a fresh Uint8Array so the Blob constructor sees an
-      // ArrayBuffer-backed view (Node's Buffer may sit on a SharedArrayBuffer,
-      // which the DOM BlobPart type rejects under strict TS lib typings).
-      const view = new Uint8Array(bytes.byteLength);
-      view.set(bytes);
-      form.append('files', new Blob([view], { type: 'application/pdf' }), filename);
-
-      const res = await fetch(`${baseUrl}/v1alpha/convert/file`, {
-        method: 'POST',
-        body: form,
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(
-          `Docling OCR failed: HTTP ${res.status} ${res.statusText}${text ? ` — ${text}` : ''}`,
-        );
+      // Always chunk by page range. Docling-serve returns
+      // `status: 'failure'` with null content when asked for a range past
+      // the end of the document — we use that as the loop terminator.
+      // We also stop early when a chunk returns fewer pages than requested
+      // (saves one wasted call on PDFs whose page count is not a multiple of
+      // PAGE_CHUNK_SIZE).
+      const chunks: string[] = [];
+      let metadata: Record<string, unknown> = {};
+      let start = 1;
+      while (true) {
+        const end = start + PAGE_CHUNK_SIZE - 1;
+        const payload = await convertChunk(baseUrl, filename, bytes, [start, end]);
+        if (payload.status === 'failure') {
+          if (start === 1) {
+            throw new Error(
+              `Docling OCR returned status=failure on the first chunk (pages ${start}..${end})${payload.message ? `: ${payload.message}` : ''}`,
+            );
+          }
+          break;
+        }
+        if (payload.status && payload.status !== 'success') {
+          throw new Error(
+            `Docling OCR returned status=${payload.status}${payload.message ? `: ${payload.message}` : ''}`,
+          );
+        }
+        const document = payload.document;
+        if (!document) {
+          throw new Error('Docling OCR response missing `document` field');
+        }
+        const md = (document.md_content ?? document.markdown ?? '').trim();
+        if (!md) break;
+        chunks.push(md);
+        if (start === 1) metadata = document.metadata ?? {};
+        // Marker count tells us how many pages came back (== breaks + 1).
+        // Re-create the regex each call since the /g flag carries state.
+        const markerRe = new RegExp(DOCLING_PAGE_BREAK, 'g');
+        const pagesInChunk = (md.match(markerRe) ?? []).length + 1;
+        if (pagesInChunk < PAGE_CHUNK_SIZE) break;
+        start += PAGE_CHUNK_SIZE;
       }
 
-      const payload = (await res.json()) as DoclingResponse;
-
-      if (payload.status && payload.status !== 'success') {
-        throw new Error(
-          `Docling OCR returned status=${payload.status}${payload.message ? `: ${payload.message}` : ''}`,
-        );
-      }
-
-      const document = payload.document;
-      if (!document) {
-        throw new Error('Docling OCR response missing `document` field');
-      }
-
-      const markdown = (document.md_content ?? document.markdown ?? '').trim();
-      const pages =
-        document.pages && document.pages.length > 0
-          ? pagesFromResponse(document.pages)
-          : splitMarkdownIntoPages(markdown);
+      // Glue chunks together with the same marker so splitMarkdownIntoPages
+      // sees the full sequence of page boundaries — within and across chunks.
+      const markdown = chunks.join(`\n${DOCLING_PAGE_BREAK}\n`);
+      const pages = splitMarkdownIntoPages(markdown);
 
       return {
         markdown: pages.map((page) => page.markdown).join('\n\n---\n\n'),
         pages,
-        metadata: { filename, ...(document.metadata ?? {}) },
+        metadata: { filename, ...metadata },
       };
     },
   };

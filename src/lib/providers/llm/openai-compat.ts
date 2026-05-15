@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { generateText } from 'ai';
+import { generateObject, generateText } from 'ai';
 import { z } from 'zod';
 import type {
   LlmProvider,
@@ -63,45 +63,60 @@ export function createOpenAICompatLlm(config: OpenAICompatLlmConfig): LlmProvide
     async generateStructured<T>(
       input: LlmStructuredInput<T>,
     ): Promise<LlmStructuredOutput<T>> {
-      const baseSystem = input.system ?? '';
-      const jsonInstruction =
-        'Respond with raw JSON only. No prose, no explanations, no Markdown code fences. ' +
-        'The JSON must match the schema implied by the user prompt.';
-      const system = baseSystem ? `${baseSystem}\n\n${jsonInstruction}` : jsonInstruction;
-
-      let lastErr: unknown;
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const { text } = await generateText({
+      // Primary path: AI SDK's `generateObject` sets `response_format:
+      // {type: 'json_object'}` on the request. Recent Ollama versions
+      // (0.5+) honour this cleanly even on smaller models like qwen3:8b
+      // and gemma3:12b. Falls back to the prompt-based JSON path if the
+      // structured-output call throws (older Ollama / non-JSON-mode
+      // providers).
+      const schema = input.schema as z.ZodType<T>;
+      try {
+        const { object } = await generateObject({
           model,
           prompt: input.prompt,
-          system,
+          ...(input.system !== undefined ? { system: input.system } : {}),
+          schema: schema as z.ZodType<unknown>,
         });
-        const unwrapped = unwrapCodeFence(text);
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(unwrapped);
-        } catch (err) {
+        return { value: object as T };
+      } catch (structuredErr) {
+        // Fall through to prompt-based JSON for providers that don't
+        // support response_format. Surfaces the structured error if both
+        // paths fail.
+        const baseSystem = input.system ?? '';
+        const jsonInstruction =
+          'Respond with raw JSON only. No prose, no explanations, no Markdown code fences. ' +
+          'The JSON must match the schema implied by the user prompt.';
+        const system = baseSystem ? `${baseSystem}\n\n${jsonInstruction}` : jsonInstruction;
+
+        let lastErr: unknown = structuredErr;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const { text } = await generateText({
+            model,
+            prompt: input.prompt,
+            system,
+          });
+          const unwrapped = unwrapCodeFence(text);
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(unwrapped);
+          } catch (err) {
+            lastErr = new Error(
+              `openai-compat structured: model output was not valid JSON: ${(err as Error).message}`,
+            );
+            continue;
+          }
+          let result = schema.safeParse(parsed);
+          if (!result.success && Array.isArray(parsed)) {
+            const fieldName = topLevelArrayField(schema);
+            if (fieldName) result = schema.safeParse({ [fieldName]: parsed });
+          }
+          if (result.success) return { value: result.data };
           lastErr = new Error(
-            `openai-compat structured: model output was not valid JSON: ${(err as Error).message}`,
+            `openai-compat structured: response failed schema validation: ${result.error.message}`,
           );
-          continue;
         }
-        // Try the parsed shape first. Small open models often return a
-        // bare top-level array when the schema's single field is an array
-        // (e.g. `[…]` instead of `{recommendations: […]}`); fall back to
-        // wrapping the value under the schema's first field name.
-        const schema = input.schema as z.ZodType<T>;
-        let result = schema.safeParse(parsed);
-        if (!result.success && Array.isArray(parsed)) {
-          const fieldName = topLevelArrayField(schema);
-          if (fieldName) result = schema.safeParse({ [fieldName]: parsed });
-        }
-        if (result.success) return { value: result.data };
-        lastErr = new Error(
-          `openai-compat structured: response failed schema validation: ${result.error.message}`,
-        );
+        throw lastErr instanceof Error ? lastErr : new Error('openai-compat structured: unknown failure');
       }
-      throw lastErr instanceof Error ? lastErr : new Error('openai-compat structured: unknown failure');
     },
   };
 }

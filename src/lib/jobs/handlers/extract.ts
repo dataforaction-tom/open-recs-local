@@ -52,7 +52,14 @@ import {
 import type { RepoContext } from '@/lib/repositories/types';
 
 const MAX_PASS1_MARKDOWN = 10_000;
-const MAX_PASS2_MARKDOWN = 100_000;
+// Pass 2 used to truncate at 100k chars (~25k tokens), which is more than
+// any local 8B model can chew through in a reasonable time on Apple
+// Silicon — a 122k-char doc took 6+ minutes and intermittently left the
+// worker stuck on a hung fetch. 30k chars (~7.5k tokens) fits in a 12k
+// context window and lets a single Pass 2 call finish in roughly a
+// minute. Sources with explicit rec sections usually return far less
+// than this from `detectRecommendationSections` anyway.
+const MAX_PASS2_MARKDOWN = 30_000;
 
 function fixtureKeyFromStorageKey(storageKey: string): string {
   const filename = storageKey.split('/').pop() ?? storageKey;

@@ -7,8 +7,9 @@ const FAKE_PDF = Buffer.from('%PDF-1.4 fake');
 
 type FetchCall = { url: string; init: RequestInit };
 
-function stubFetch(response: Response): { calls: FetchCall[] } {
+function stubFetch(response: Response | Response[]): { calls: FetchCall[] } {
   const calls: FetchCall[] = [];
+  const queue = Array.isArray(response) ? [...response] : null;
   const fetchStub = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url =
       typeof input === 'string'
@@ -17,7 +18,12 @@ function stubFetch(response: Response): { calls: FetchCall[] } {
           ? input.toString()
           : input.url;
     calls.push({ url, init });
-    return response;
+    if (queue) {
+      // Sequence mode: pop the next planned response; the last one repeats for
+      // any further (unexpected) calls so an assertion can still fail loudly.
+      return queue.length > 1 ? queue.shift()! : queue[0]!;
+    }
+    return response as Response;
   });
   vi.stubGlobal('fetch', fetchStub);
   return { calls };
@@ -39,7 +45,7 @@ describe('docling OCR provider', () => {
     vi.restoreAllMocks();
   });
 
-  it('POSTs to /v1alpha/convert/file with multipart body containing the PDF', async () => {
+  it('POSTs to /v1/convert/file with multipart body containing the PDF', async () => {
     const { calls } = stubFetch(
       jsonResponse({
         status: 'success',
@@ -52,7 +58,7 @@ describe('docling OCR provider', () => {
 
     expect(calls).toHaveLength(1);
     const call = calls[0]!;
-    expect(call.url).toBe(`${BASE_URL}/v1alpha/convert/file`);
+    expect(call.url).toBe(`${BASE_URL}/v1/convert/file`);
     expect(call.init.method).toBe('POST');
     expect(call.init.body).toBeInstanceOf(FormData);
     const form = call.init.body as FormData;
@@ -150,12 +156,74 @@ describe('docling OCR provider', () => {
     const ocr = createDoclingOcr({ baseUrl: `${BASE_URL}/` });
 
     await ocr.parseDocument({ filename: 'r.pdf', bytes: FAKE_PDF });
-    expect(calls[0]!.url).toBe(`${BASE_URL}/v1alpha/convert/file`);
+    expect(calls[0]!.url).toBe(`${BASE_URL}/v1/convert/file`);
   });
 
   it('exposes name=docling', () => {
     const ocr = createDoclingOcr({ baseUrl: BASE_URL });
     expect(ocr.name).toBe('docling');
+  });
+
+  it('sends page_range as two repeated multipart fields', async () => {
+    const { calls } = stubFetch(
+      jsonResponse({ status: 'success', document: { md_content: 'short doc' } }),
+    );
+    const ocr = createDoclingOcr({ baseUrl: BASE_URL });
+    await ocr.parseDocument({ filename: 'r.pdf', bytes: FAKE_PDF });
+
+    const form = calls[0]!.init.body as FormData;
+    const pageRangeEntries = form.getAll('page_range');
+    expect(pageRangeEntries).toEqual(['1', '50']);
+  });
+
+  it('chunks a long PDF: keeps requesting pages until docling returns failure', async () => {
+    // Two full chunks (50 + 50 pages), then a failure to terminate the loop.
+    const fullChunkOf = (start: number): string =>
+      Array.from({ length: 50 }, (_, i) => `page ${start + i}`).join('\n<!-- docling-page-break -->\n');
+    const { calls } = stubFetch([
+      jsonResponse({ status: 'success', document: { md_content: fullChunkOf(1) } }),
+      jsonResponse({ status: 'success', document: { md_content: fullChunkOf(51) } }),
+      jsonResponse({ status: 'failure', document: { md_content: null } }),
+    ]);
+    const ocr = createDoclingOcr({ baseUrl: BASE_URL });
+
+    const out = await ocr.parseDocument({ filename: 'big.pdf', bytes: FAKE_PDF });
+
+    expect(calls).toHaveLength(3);
+    expect((calls[0]!.init.body as FormData).getAll('page_range')).toEqual(['1', '50']);
+    expect((calls[1]!.init.body as FormData).getAll('page_range')).toEqual(['51', '100']);
+    expect((calls[2]!.init.body as FormData).getAll('page_range')).toEqual(['101', '150']);
+    expect(out.pages).toHaveLength(100);
+    expect(out.pages[0]!.markdown).toBe('page 1');
+    expect(out.pages[99]!.markdown).toBe('page 100');
+  });
+
+  it('stops early when a chunk returns fewer pages than the chunk size', async () => {
+    // First chunk returns just 5 pages — under PAGE_CHUNK_SIZE — so the
+    // adapter must NOT make a second call.
+    const shortChunk = Array.from({ length: 5 }, (_, i) => `p${i + 1}`).join(
+      '\n<!-- docling-page-break -->\n',
+    );
+    const { calls } = stubFetch([
+      jsonResponse({ status: 'success', document: { md_content: shortChunk } }),
+      jsonResponse({ status: 'failure', document: { md_content: null } }),
+    ]);
+    const ocr = createDoclingOcr({ baseUrl: BASE_URL });
+
+    const out = await ocr.parseDocument({ filename: 'small.pdf', bytes: FAKE_PDF });
+
+    expect(calls).toHaveLength(1);
+    expect(out.pages).toHaveLength(5);
+  });
+
+  it('throws if the very first chunk returns status=failure (real failure, not end-of-doc)', async () => {
+    stubFetch([
+      jsonResponse({ status: 'failure', document: { md_content: null }, message: 'unsupported' }),
+    ]);
+    const ocr = createDoclingOcr({ baseUrl: BASE_URL });
+    await expect(ocr.parseDocument({ filename: 'r.pdf', bytes: FAKE_PDF })).rejects.toThrow(
+      /first chunk/,
+    );
   });
 });
 
