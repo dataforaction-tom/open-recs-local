@@ -71,6 +71,7 @@ function selectLlm(env: Env): LlmProvider {
         baseUrl: env.LLM_BASE_URL,
         model: env.LLM_MODEL,
         ...(env.LLM_API_KEY ? { apiKey: env.LLM_API_KEY } : {}),
+        ...(env.LLM_TIMEOUT_MS ? { timeoutMs: env.LLM_TIMEOUT_MS } : {}),
       });
     }
     default:

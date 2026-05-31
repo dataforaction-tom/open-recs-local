@@ -50,6 +50,29 @@ function stubFetch(body: unknown): { calls: FetchCall[] } {
   return { calls };
 }
 
+/**
+ * A fetch stub that never resolves on its own — it only settles when the
+ * request's AbortSignal fires, rejecting with the signal's reason. Simulates
+ * a stuck upstream (the Ollama "looks hung" case from the stability handoff).
+ */
+function hangingFetch(): { calls: number } {
+  const state = { calls: 0 };
+  const fetchStub = vi.fn((_input: RequestInfo | URL, init: RequestInit = {}) => {
+    state.calls += 1;
+    return new Promise<Response>((_resolve, reject) => {
+      const signal = init.signal;
+      const fail = (): void => reject(signal?.reason ?? new Error('aborted'));
+      if (signal?.aborted) {
+        fail();
+        return;
+      }
+      signal?.addEventListener('abort', fail, { once: true });
+    });
+  });
+  vi.stubGlobal('fetch', fetchStub);
+  return state;
+}
+
 function headerValue(init: RequestInit, name: string): string | undefined {
   const headers = init.headers;
   if (!headers) return undefined;
@@ -128,6 +151,23 @@ describe('openai-compat LLM provider', () => {
     expect(out.value.count).toBe(3);
   });
 
+  it('generateText aborts the request once timeoutMs elapses', async () => {
+    hangingFetch();
+    const llm = createOpenAICompatLlm({ baseUrl: BASE_URL, model: 'm', timeoutMs: 40 });
+    await expect(llm.generateText({ prompt: 'hi' })).rejects.toThrow();
+  });
+
+  it('generateStructured aborts on timeout instead of hanging forever', async () => {
+    // A stuck server makes the primary generateObject call hang; the deadline
+    // fires, and the prompt-based fallback sees an already-aborted signal so it
+    // can't re-incur the full timeout. The call rejects rather than locking the
+    // worker.
+    hangingFetch();
+    const llm = createOpenAICompatLlm({ baseUrl: BASE_URL, model: 'm', timeoutMs: 40 });
+    const schema = z.object({ x: z.number() });
+    await expect(llm.generateStructured({ prompt: 'x', schema })).rejects.toThrow();
+  });
+
   it('generateStructured throws when the response fails Zod validation', async () => {
     stubFetch(chatCompletion(JSON.stringify({ title: 'Alpha', count: 'not-a-number' })));
 
@@ -165,6 +205,18 @@ describe('env + factory wiring for openai-compatible LLM', () => {
         LLM_BASE_URL: 'http://ollama:11434/v1',
       }),
     ).toThrow(/LLM_MODEL/);
+  });
+
+  it('loadEnv coerces LLM_TIMEOUT_MS to a number', () => {
+    const env = loadEnv({
+      APP_MODE: 'local',
+      DATABASE_URL: 'postgres://x/y',
+      LLM_PROVIDER: 'openai-compatible',
+      LLM_BASE_URL: 'http://ollama:11434/v1',
+      LLM_MODEL: 'llama3.1:8b',
+      LLM_TIMEOUT_MS: '5000',
+    });
+    expect(env.LLM_TIMEOUT_MS).toBe(5000);
   });
 
   it('loadEnv accepts a fully-configured openai-compatible setup', () => {

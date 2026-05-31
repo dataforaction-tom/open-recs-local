@@ -16,7 +16,16 @@ export type OpenAICompatLlmConfig = {
   apiKey?: string;
   /** Model id to request, e.g. `llama3.1:8b` or `gpt-4o-mini`. */
   model: string;
+  /**
+   * Per-request timeout in milliseconds. A stuck upstream (e.g. an Ollama
+   * server that accepted the request but never streams a token) would
+   * otherwise block the worker indefinitely. Defaults to 120s.
+   */
+  timeoutMs?: number;
 };
+
+/** Default per-request timeout — generous enough for slow local 8B models. */
+const DEFAULT_TIMEOUT_MS = 120_000;
 
 /**
  * Strip a ```...``` (or ```json…```) code fence around model output. Llama
@@ -48,6 +57,7 @@ export function createOpenAICompatLlm(config: OpenAICompatLlmConfig): LlmProvide
     ...(config.apiKey ? { apiKey: config.apiKey } : {}),
   });
   const model = client.chatModel(config.model);
+  const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   return {
     name: 'openai-compat',
@@ -55,6 +65,7 @@ export function createOpenAICompatLlm(config: OpenAICompatLlmConfig): LlmProvide
       const { text } = await generateText({
         model,
         prompt: input.prompt,
+        abortSignal: AbortSignal.timeout(timeoutMs),
         ...(input.system !== undefined ? { system: input.system } : {}),
         ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
       });
@@ -70,10 +81,15 @@ export function createOpenAICompatLlm(config: OpenAICompatLlmConfig): LlmProvide
       // structured-output call throws (older Ollama / non-JSON-mode
       // providers).
       const schema = input.schema as z.ZodType<T>;
+      // One deadline for the whole operation (primary + fallback retries), so a
+      // stuck server can't make us pay the timeout once per attempt. Once it
+      // fires, every in-flight and subsequent AI SDK call aborts immediately.
+      const deadline = AbortSignal.timeout(timeoutMs);
       try {
         const { object } = await generateObject({
           model,
           prompt: input.prompt,
+          abortSignal: deadline,
           ...(input.system !== undefined ? { system: input.system } : {}),
           schema: schema as z.ZodType<unknown>,
         });
@@ -94,6 +110,7 @@ export function createOpenAICompatLlm(config: OpenAICompatLlmConfig): LlmProvide
             model,
             prompt: input.prompt,
             system,
+            abortSignal: deadline,
           });
           const unwrapped = unwrapCodeFence(text);
           let parsed: unknown;

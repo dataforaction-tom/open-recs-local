@@ -18,6 +18,10 @@ const providerSelectors = {
   LLM_BASE_URL: z.string().url().optional(),
   LLM_API_KEY: z.string().optional(),
   LLM_MODEL: z.string().optional(),
+  // Per-request timeout (ms) for the openai-compatible LLM. Guards against a
+  // stuck local server (e.g. Ollama) locking a worker forever. Defaults to
+  // 120s in the adapter when unset; raise it for slow large models.
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   // Optional dedicated streaming-chat config. When any CHAT_* var is unset it
   // falls back to the matching LLM_* var, so existing single-model deployments
   // keep working without change. This split exists because the structured-output
