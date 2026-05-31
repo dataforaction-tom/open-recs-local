@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { and, eq, isNotNull } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import { startPostgres, type StartedPg } from '../../../../tests/helpers/pg-container';
 import { applyMigrations } from '../../../../tests/helpers/migrate';
 import { createDb, type DbClient } from '@/lib/db/client';
@@ -87,6 +89,24 @@ async function seedRecs(sourceId: string, n: number): Promise<string[]> {
     ids.push(row.id);
   }
   return ids;
+}
+
+/**
+ * A DbClient that counts every `UPDATE` statement sent to Postgres, via
+ * postgres-js's `debug` hook. Lets a test assert that bulk writes collapse
+ * N per-row updates into a single statement, rather than asserting an
+ * implementation detail like which Drizzle method was called.
+ */
+function countingDb(url: string): { client: DbClient; updateCount: () => number } {
+  let updates = 0;
+  const sql = postgres(url, {
+    max: 5,
+    prepare: false,
+    debug: (_conn, query) => {
+      if (/^\s*update\b/i.test(query)) updates += 1;
+    },
+  });
+  return { client: { db: drizzle(sql), sql }, updateCount: () => updates };
 }
 
 function ctxWithProviders(providers: Providers): JobContext {
@@ -287,6 +307,58 @@ describe('source.embed handler', () => {
     });
 
     expect(spy.calls.map((c) => c.length)).toEqual([32, 32, 6]);
+  }, 60_000);
+
+  it('bulk update: a batch of recs is written in one UPDATE, not one per row', async () => {
+    const { sourceId } = await seedSource();
+    await seedRecs(sourceId, 10); // 10 <= BATCH_SIZE → a single batch
+
+    const counting = countingDb(pg.url);
+    const ctx: JobContext = {
+      queue,
+      db: counting.client.db,
+      providers: baseProviders,
+      env,
+      emit: (channelId, event) => emitJobEvent(counting.client.sql, channelId, event),
+    };
+    await embedHandler(ctx, { sourceId });
+    await counting.client.sql.end({ timeout: 5 });
+
+    // One bulk UPDATE for the 10 recs + one UPDATE flipping source.status.
+    // The old per-row loop issued 10 + 1 = 11.
+    expect(counting.updateCount()).toBe(2);
+
+    // And the data is actually written — 768-dim vectors on every row.
+    const rows = await dbClient.sql<{ dim: number }[]>`
+      select array_length(embedding::real[], 1) as dim
+      from recommendations where source_id = ${sourceId}`;
+    expect(rows).toHaveLength(10);
+    for (const r of rows) expect(r.dim).toBe(768);
+  }, 60_000);
+
+  it('bulk update: a batch of source pages is written in one UPDATE, not one per row', async () => {
+    const { sourceId } = await seedSource();
+    await seedPages(sourceId, 8);
+
+    const counting = countingDb(pg.url);
+    const ctx: JobContext = {
+      queue,
+      db: counting.client.db,
+      providers: baseProviders,
+      env,
+      emit: (channelId, event) => emitJobEvent(counting.client.sql, channelId, event),
+    };
+    await embedHandler(ctx, { sourceId });
+    await counting.client.sql.end({ timeout: 5 });
+
+    // One bulk UPDATE for the 8 pages + one UPDATE flipping source.status.
+    expect(counting.updateCount()).toBe(2);
+
+    const rows = await dbClient.sql<{ dim: number }[]>`
+      select array_length(embedding::real[], 1) as dim
+      from source_pages where source_id = ${sourceId}`;
+    expect(rows).toHaveLength(8);
+    for (const r of rows) expect(r.dim).toBe(768);
   }, 60_000);
 
   it('empty case: no recs → status=ready, no provider calls', async () => {

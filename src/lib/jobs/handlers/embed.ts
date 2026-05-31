@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { JobContext } from '../context';
 import type { QueuePayloads } from '../types';
 import {
@@ -95,18 +95,17 @@ export async function embedHandler(
       const vectors = await embedAndValidate(ctx.providers.embedding, texts);
 
       const modelTag = ctx.providers.embedding.model;
-      for (let i = 0; i < batch.length; i += 1) {
-        const row = batch[i]!;
-        const vector = vectors[i]!;
-        await ctx.db
-          .update(recommendations)
-          .set({
-            embedding: vector,
-            embeddingModel: modelTag,
-            updatedAt: new Date(),
-          })
-          .where(eq(recommendations.id, row.id));
-      }
+      const rows = batch.map((row, i) => ({ id: row.id, vector: vectors[i]! }));
+      // One bulk UPDATE per batch (UPDATE ... FROM (VALUES ...)) instead of one
+      // statement per row — 100 recs become a handful of round-trips, not 100.
+      await ctx.db.execute(sql`
+        update recommendations as r
+        set embedding = data.embedding,
+            embedding_model = ${modelTag},
+            updated_at = now()
+        from (values ${vectorValues(rows)}) as data(id, embedding)
+        where r.id = data.id
+      `);
 
       done += batch.length;
       await emitProgress();
@@ -119,14 +118,14 @@ export async function embedHandler(
       const vectors = await embedAndValidate(ctx.providers.embedding, texts);
 
       const modelTag = ctx.providers.embedding.model;
-      for (let i = 0; i < batch.length; i += 1) {
-        const row = batch[i]!;
-        const vector = vectors[i]!;
-        await ctx.db
-          .update(sourcePages)
-          .set({ embedding: vector, embeddingModel: modelTag })
-          .where(eq(sourcePages.id, row.id));
-      }
+      const rows = batch.map((row, i) => ({ id: row.id, vector: vectors[i]! }));
+      await ctx.db.execute(sql`
+        update source_pages as p
+        set embedding = data.embedding,
+            embedding_model = ${modelTag}
+        from (values ${vectorValues(rows)}) as data(id, embedding)
+        where p.id = data.id
+      `);
 
       done += batch.length;
       await emitProgress();
@@ -155,6 +154,20 @@ export async function embedHandler(
     }
     throw err;
   }
+}
+
+/**
+ * Build the `(id::uuid, embedding::vector), ...` tuple list for a bulk
+ * `UPDATE ... FROM (VALUES ...)`. Each value is parameterised; the per-row
+ * casts pin the column types so Postgres infers `data(id, embedding)`
+ * correctly. The embedding is passed as a pgvector text literal (`[a,b,...]`)
+ * — the same shape the driver writes for the typed column.
+ */
+function vectorValues(rows: ReadonlyArray<{ id: string; vector: number[] }>) {
+  return sql.join(
+    rows.map((row) => sql`(${row.id}::uuid, ${`[${row.vector.join(',')}]`}::vector)`),
+    sql`, `,
+  );
 }
 
 async function embedAndValidate(
