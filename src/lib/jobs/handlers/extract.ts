@@ -21,6 +21,7 @@ import {
   type TaxonomySlugLists,
 } from '@/lib/services/extraction-prompts';
 import {
+  batchResolveTaxonomy,
   listLocationScopes,
   listPriorityTimescales,
   listPurposes,
@@ -164,16 +165,36 @@ export async function extractHandler(
       priority_timescale: priorityTimescaleRows.map((r) => r.slug),
     };
 
-    // ----- Pass 1: source metadata -----------------------------------------
+    // ----- Pass 1 + Pass 2: Run in parallel ------------------------------------
+    // Both LLM calls are independent, so run concurrently for ~2x speedup.
+    // If either fails, we propagate the error (both must succeed for valid output).
     const pass1Input = truncate(canonicalMarkdown, MAX_PASS1_MARKDOWN);
-    const pass1 = await ctx.providers.llm.generateStructured({
-      prompt: `Extract the source-level metadata for the following document.\n\n---\n${pass1Input}`,
-      system: buildPass1Prompt(taxonomySlugs),
-      schema: SourceMetadataSchema,
-      key: `${fixtureKey}:metadata`,
-    });
-    const metadata: SourceMetadataOutput = pass1.value;
+    const section = detectRecommendationSections(canonicalMarkdown);
+    const pass2Input = truncate(section.processText, MAX_PASS2_MARKDOWN);
+    const pass2System =
+      section.mode === 'sections'
+        ? buildPass2StrictPrompt(taxonomySlugs)
+        : buildPass2LooserPrompt(taxonomySlugs);
 
+    const [pass1Result, pass2Result] = await Promise.all([
+      ctx.providers.llm.generateStructured({
+        prompt: `Extract the source-level metadata for the following document.\n\n---\n${pass1Input}`,
+        system: buildPass1Prompt(taxonomySlugs),
+        schema: SourceMetadataSchema,
+        key: `${fixtureKey}:metadata`,
+      }),
+      ctx.providers.llm.generateStructured({
+        prompt: `Extract every actionable recommendation from the text below.\n\n---\n${pass2Input}`,
+        system: pass2System,
+        schema: RecommendationsSchema,
+        key: fixtureKey,
+      }),
+    ]);
+
+    const metadata: SourceMetadataOutput = pass1Result.value;
+    const recs: RecommendationInput[] = pass2Result.value.recommendations;
+
+    // ----- Source metadata (from Pass 1) ------------------------------------
     await ctx.db
       .update(sources)
       .set({
@@ -202,27 +223,39 @@ export async function extractHandler(
     );
     await replaceSourceTargetAudienceTypes(repoCtx, sourceId, audienceIdsForSource);
 
-    // ----- Section detection + Pass 2 ------------------------------------
-    const section = detectRecommendationSections(canonicalMarkdown);
-    const pass2Input = truncate(section.processText, MAX_PASS2_MARKDOWN);
-    const pass2System =
-      section.mode === 'sections'
-        ? buildPass2StrictPrompt(taxonomySlugs)
-        : buildPass2LooserPrompt(taxonomySlugs);
-
-    const pass2 = await ctx.providers.llm.generateStructured({
-      prompt: `Extract every actionable recommendation from the text below.\n\n---\n${pass2Input}`,
-      system: pass2System,
-      schema: RecommendationsSchema,
-      key: fixtureKey,
-    });
-    const recs: RecommendationInput[] = pass2.value.recommendations;
-
+    // ----- Recommendations (from Pass 2 results) ----------------------------
     await ctx.db.transaction(async (tx) => {
       // Idempotency: delete existing recs for this source. Cascades clear
       // recommendation_statuses + every rec-side M2M row automatically.
       await tx.delete(recommendations).where(eq(recommendations.sourceId, sourceId));
     });
+
+    // Batch resolve all taxonomy axes upfront (N+1 -> 1 DB call per axis).
+    // Results are positional: index i corresponds to recs[i], so recs that
+    // share a title never collide.
+    const [themeIdsPerRec, purposeIdsPerRec, audienceIdsPerRec, locationIdsPerRec] =
+      await Promise.all([
+        batchResolveTaxonomy(
+          repoCtx,
+          recs.map((r) => r.thematic_area_slugs),
+          resolveOrCreateThematicAreas,
+        ),
+        batchResolveTaxonomy(
+          repoCtx,
+          recs.map((r) => r.purpose_slugs),
+          resolveOrCreatePurposes,
+        ),
+        batchResolveTaxonomy(
+          repoCtx,
+          recs.map((r) => r.target_audience_type_slugs),
+          resolveOrCreateTargetAudienceTypes,
+        ),
+        batchResolveTaxonomy(
+          repoCtx,
+          recs.map((r) => r.location_scope_slugs),
+          resolveOrCreateLocationScopes,
+        ),
+      ]);
 
     for (let i = 0; i < recs.length; i += 1) {
       const rec = recs[i]!;
@@ -260,16 +293,14 @@ export async function extractHandler(
         note: 'initial',
       });
 
-      const themeIds = await resolveOrCreateThematicAreas(repoCtx, rec.thematic_area_slugs);
+      // Use pre-resolved taxonomy IDs from batch resolution (positional by rec).
+      const themeIds = themeIdsPerRec[i] ?? [];
       await replaceRecommendationThematicAreas(repoCtx, insertedRec.id, themeIds);
-      const purposeIds = await resolveOrCreatePurposes(repoCtx, rec.purpose_slugs);
+      const purposeIds = purposeIdsPerRec[i] ?? [];
       await replaceRecommendationPurposes(repoCtx, insertedRec.id, purposeIds);
-      const audienceIds = await resolveOrCreateTargetAudienceTypes(
-        repoCtx,
-        rec.target_audience_type_slugs,
-      );
+      const audienceIds = audienceIdsPerRec[i] ?? [];
       await replaceRecommendationTargetAudienceTypes(repoCtx, insertedRec.id, audienceIds);
-      const locationIds = await resolveOrCreateLocationScopes(repoCtx, rec.location_scope_slugs);
+      const locationIds = locationIdsPerRec[i] ?? [];
       await replaceRecommendationLocationScopes(repoCtx, insertedRec.id, locationIds);
     }
 

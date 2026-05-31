@@ -305,6 +305,82 @@ describe('extractHandler — unknown slugs', () => {
   });
 });
 
+describe('extractHandler — duplicate rec titles', () => {
+  it('gives each recommendation its own taxonomy tags even when two recs share a title', async () => {
+    // Two recs with an identical title but distinct thematic areas. The
+    // per-rec tag mapping must key on rec identity, not title — otherwise the
+    // second rec overwrites the first and both end up with the same tags.
+    const customLlm: LlmProvider = {
+      name: 'fake-dup-titles',
+      async generateText() {
+        return { text: '' };
+      },
+      async generateStructured<T>(input: LlmStructuredInput<T>): Promise<LlmStructuredOutput<T>> {
+        if (input.key?.endsWith(':metadata')) {
+          return {
+            value: input.schema.parse({
+              summary: 'Test',
+              authors: [],
+              publication_date: null,
+              org_owner: null,
+              thematic_area_slugs: [],
+              source_type_slugs: [],
+              purpose_slugs: [],
+              role_relevance_slugs: [],
+              target_audience_type_slugs: [],
+            }),
+          } as LlmStructuredOutput<T>;
+        }
+        const makeRec = (body: string, themeSlug: string) => ({
+          title: 'Increase funding',
+          body,
+          thematic_area_slugs: [themeSlug],
+          purpose_slugs: [],
+          target_audience_type_slugs: [],
+          location_scope_slugs: [],
+          priority_timescale_slug: null,
+          target_organization: null,
+          notes: null,
+          confidence: 'medium' as const,
+          page_start: null,
+          page_end: null,
+        });
+        return {
+          value: input.schema.parse({
+            recommendations: [
+              makeRec('First rec body, with at least twenty characters of text.', 'dup-theme-alpha'),
+              makeRec('Second rec body, with at least twenty characters of text.', 'dup-theme-beta'),
+            ],
+          }),
+        } as LlmStructuredOutput<T>;
+      },
+    };
+    const providers: Providers = { ...baseProviders, llm: customLlm };
+    const { sourceId } = await seedSource({ filename: 'dup-title-test.pdf', canonical: '# X' });
+    await extractHandler(ctxWithProviders(providers), { sourceId });
+
+    const recRows = await dbClient.db
+      .select({ id: recommendations.id, slug: recommendations.slug })
+      .from(recommendations)
+      .where(eq(recommendations.sourceId, sourceId))
+      .orderBy(recommendations.slug);
+    expect(recRows).toHaveLength(2);
+
+    const themeSlugsFor = async (recId: string): Promise<string[]> => {
+      const rows = await dbClient.db
+        .select({ slug: thematicAreas.slug })
+        .from(recommendationsThematicAreas)
+        .innerJoin(thematicAreas, eq(thematicAreas.id, recommendationsThematicAreas.thematicAreaId))
+        .where(eq(recommendationsThematicAreas.recommendationId, recId));
+      return rows.map((r) => r.slug).sort();
+    };
+
+    // slug suffix `-0` / `-1` makes the ordering deterministic.
+    expect(await themeSlugsFor(recRows[0]!.id)).toEqual(['dup-theme-alpha']);
+    expect(await themeSlugsFor(recRows[1]!.id)).toEqual(['dup-theme-beta']);
+  });
+});
+
 describe('extractHandler — idempotency', () => {
   it('re-runs are safe: delete-then-insert means rec count stays stable across retries', async () => {
     const { sourceId } = await seedSource({ filename: `${fixtureStem}.pdf`, canonical: '# Page One' });

@@ -6,6 +6,7 @@ import { createDb, type DbClient } from '../db/client';
 import { seedTaxonomy } from '../db/seed-taxonomy';
 import { recommendations, sources } from '../db/schema';
 import {
+  batchResolveTaxonomy,
   deleteTag,
   listLocationScopes,
   listPriorityTimescales,
@@ -144,6 +145,40 @@ describe('resolveOrCreateThematicAreas + resolveOrCreateRoleRelevances + resolve
     expect((await resolveOrCreateRoleRelevances(ctx, ['policy-maker'])).length).toBe(1);
     expect((await resolveOrCreatePriorityTimescales(ctx, ['urgent'])).length).toBe(1);
     expect((await resolveOrCreateTargetAudienceTypes(ctx, ['funders'])).length).toBe(1);
+  });
+});
+
+describe('batchResolveTaxonomy', () => {
+  it('returns ids positionally, one array per input rec, preserving order and empties', async () => {
+    const perRec = [[], ['bt-positional-a'], ['bt-positional-a', 'bt-positional-b']];
+    const result = await batchResolveTaxonomy(ctx, perRec, resolveOrCreateThematicAreas);
+    const rows = await listThematicAreas(ctx);
+    const bySlug = new Map(rows.map((r) => [r.slug, r.id]));
+    const a = bySlug.get('bt-positional-a');
+    const b = bySlug.get('bt-positional-b');
+    expect(a).toBeTruthy();
+    expect(b).toBeTruthy();
+    expect(result).toHaveLength(3);
+    expect(result[0]).toEqual([]);
+    expect(result[1]).toEqual([a]);
+    expect(result[2]).toEqual([a, b]);
+  });
+
+  it('maps per-rec ids correctly when raw slugs differ only by normalisation', async () => {
+    // rec 0 supplies an un-normalised form; rec 1 supplies the already-normalised
+    // form of the SAME slug plus a second one. The two raw forms collapse to one
+    // slug after normalisation — a positional zip against the resolver output
+    // would misalign here. Each rec must still get the correct ids.
+    const perRec = [['Batch Theme One'], ['batch-theme-one', 'Batch Theme Two']];
+    const result = await batchResolveTaxonomy(ctx, perRec, resolveOrCreateThematicAreas);
+    const rows = await listThematicAreas(ctx);
+    const bySlug = new Map(rows.map((r) => [r.slug, r.id]));
+    const one = bySlug.get('batch-theme-one');
+    const two = bySlug.get('batch-theme-two');
+    expect(one).toBeTruthy();
+    expect(two).toBeTruthy();
+    expect(result[0]).toEqual([one]);
+    expect(result[1]).toEqual([one, two]);
   });
 });
 

@@ -145,6 +145,73 @@ export const resolveOrCreateRoleRelevances = (ctx: RepoContext, slugs: readonly 
 export const resolveOrCreatePriorityTimescales = (ctx: RepoContext, slugs: readonly string[]) =>
   resolveOrCreateAxis(ctx, priorityTimescales, slugs);
 
+/**
+ * Batch-resolve taxonomy slugs for many recommendations in one DB round-trip
+ * per axis (the N+1 fix), returning ids positionally — one id array per input
+ * rec, in the same order.
+ *
+ * Two things this guards against, both of which a naive index-zip gets wrong:
+ *  - **Identity:** results are positional, so two recs that happen to share a
+ *    title (or any other field) never clobber each other's tags.
+ *  - **Normalisation:** we normalise + dedupe the slugs with the *same*
+ *    `normaliseSlug` the resolver uses before calling it. Because the resolver
+ *    re-normalises and re-dedupes internally, feeding it an already-canonical,
+ *    already-unique list means it can't reorder or shrink the array — so the
+ *    `uniqueSlugs[i] -> resolvedIds[i]` pairing stays aligned even when raw
+ *    inputs differ only by casing/whitespace (e.g. 'Mental Health' vs
+ *    'mental-health').
+ *
+ * @param ctx - Repository context
+ * @param perRecSlugs - One slug array per recommendation, in order
+ * @param resolver - Single-axis resolver (e.g. `resolveOrCreateThematicAreas`)
+ * @returns One resolved-id array per recommendation, in the same order
+ */
+export async function batchResolveTaxonomy(
+  ctx: RepoContext,
+  perRecSlugs: readonly (readonly string[])[],
+  resolver: (ctx: RepoContext, slugs: readonly string[]) => Promise<string[]>,
+): Promise<string[][]> {
+  // Canonicalise each rec's slugs up front so lookups match the resolver's view.
+  const normalisedPerRec = perRecSlugs.map((slugs) =>
+    slugs.map(normaliseSlug).filter((slug) => slug.length > 0),
+  );
+
+  // Unique slugs across all recs, first-seen order preserved.
+  const uniqueSlugs: string[] = [];
+  const seen = new Set<string>();
+  for (const slugs of normalisedPerRec) {
+    for (const slug of slugs) {
+      if (!seen.has(slug)) {
+        seen.add(slug);
+        uniqueSlugs.push(slug);
+      }
+    }
+  }
+
+  if (uniqueSlugs.length === 0) {
+    return perRecSlugs.map(() => []);
+  }
+
+  // One resolve call for the whole batch. Input is already normalised + unique,
+  // so the resolver returns ids 1:1 in the same order.
+  const resolvedIds = await resolver(ctx, uniqueSlugs);
+  const idBySlug = new Map<string, string>();
+  for (let i = 0; i < uniqueSlugs.length; i += 1) {
+    const slug = uniqueSlugs[i];
+    const id = resolvedIds[i];
+    if (slug && id) idBySlug.set(slug, id);
+  }
+
+  return normalisedPerRec.map((slugs) => {
+    const ids: string[] = [];
+    for (const slug of slugs) {
+      const id = idBySlug.get(slug);
+      if (id) ids.push(id);
+    }
+    return ids;
+  });
+}
+
 // -- pre-existing functions (kept) --------------------------------------------
 
 export async function listEvidenceTypes(
