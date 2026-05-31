@@ -1,6 +1,6 @@
 # State
 
-> Last updated: 2026-05-11
+> Last updated: 2026-05-25
 
 ## Progress
 
@@ -16,10 +16,14 @@ stateDiagram-v2
     Phase6 --> Phase7: recommendations UI merged
     Phase7 --> Phase8: progress updates merged
     Phase8 --> Phase9: hosted-mode auth merged
-    Phase9 --> Phase10: analytics merged
-    Phase10 --> Live: 1.0 release
+    Phase9 --> Phase10: polish + 1.0 release
+    Phase10 --> Phase10a: pipeline perf fixes
+    Phase10a --> Phase10b: UI enhancements
+    Phase10b --> Live: 1.0 release
 
     note right of Phase10: ← WE ARE HERE
+    note right of Phase10a: Pipeline N+1, parallel LLM, batch embed
+    note right of Phase10b: Source list, filters, tags, metadata
 ```
 
 - **Phase 0** ✅ merged (PR #1) — Next.js 16 + Postgres compose, CI green, MIT license.
@@ -34,8 +38,10 @@ stateDiagram-v2
 - **Phase 7** ✅ — progress updates: `<ProgressUpdateForm>` (RHF + Zod), `<ProgressUpdatesList>`, `<StatusBadge>` + `<StatusTransitionControl>` on the detail page, `<EditableSelectCell>` + Status column on the index table; `getLatestStatuses` SQL helper, `createProgressUpdate` + `listProgressUpdates` + `appendStatus` repos, server actions + shared Zod schemas.
 - **Phase 8** ✅ — hosted mode: Better-auth (email+password + magic link) wired via `BetterAuthProvider` behind the existing `AuthContext`; new `users` / `sessions` / `accounts` / `verifications` / `user_roles` schema with FKs on the existing nullable user-ref columns; `EmailProvider` interface + console-logger fake; first-signup-becomes-admin bootstrap; `/signup` / `/login` / `/magic-link` / `/forgot-password` / `/reset-password` / `/profile` pages; ownership-request flow on `/sources/[slug]` + admin queue at `/admin`; `<RoleTable>` + role-assignment.
 - **Phase 9** ✅ — analytics: `analyticsCache` repo + `analytics-sql.ts` (recs-per-status / recs-per-theme / progress cadence / source timeline); `analytics` service (`getOrCompute` + `computeAll`); `analytics.refresh` pg-boss handler scheduled at 02:00 daily; four Chart.js components (donut / bar / 2× line); `/analytics` global page (admin-only in hosted mode) and `/sources/[slug]/analytics` per-source page.
-- **Phase 10a** 🔧 in flight — polish: Resend email backend behind `EMAIL_PROVIDER=resend`, `@tailwindcss/typography` (closes Phase-5 carry-over), stacked `<SourceViewer>` below `md:` breakpoint, `docs/running-locally.md`, README screenshots + dual-mode explanation, `.env.example` updates.
-- **Phase 10b** ⏳ — Playwright E2E + CI matrix + 1.0 version bump + tag.
+- **Phase 10a** ✅ — pipeline performance: batch taxonomy resolution (done), parallel LLM (done), batch embedding updates (done — bulk `UPDATE ... FROM (VALUES)` per batch, one statement instead of one per row).
+- **Phase 10b** ⏳ — UI enhancements: source list metadata, filter expansion, tag labels, source metadata display.
+- **Phase 10c** ⏳ — Search perf: tsvector column migration.
+- **Phase 10d** ⏳ — Playwright E2E + CI + 1.0 tag.
 
 ## Component Status
 
@@ -69,7 +75,8 @@ stateDiagram-v2
 | Email provider | ✅ | Resend behind `EMAIL_PROVIDER=resend`; console-logger fake is the default for local-mode |
 | Markdown typography | ✅ | `@tailwindcss/typography` plugin registered (Phase 10a) |
 | Mobile source viewer | ✅ | Stacked below `md:` breakpoint via `useMediaQuery` (Phase 10a) |
-| Analytics | ✅ | Phase 9 — Chart.js dashboards at `/analytics` (global) and `/sources/[slug]/analytics`; `analytics.refresh` cron at 02:00 + on-demand miss-backfill |
+|| Analytics | ✅ | Phase 9 — Chart.js dashboards at `/analytics` (global) and `/sources/[slug]/analytics`; `analytics.refresh` cron at 02:00 + on-demand miss-backfill |
+||| **Pipeline perf (N+1 tax ✓, parallel LLM ✓, batch embed ✓)** | ✅ Phase 10a | Tasks 1–3 done. Batch embed uses bulk `UPDATE ... FROM (VALUES)`. Plan at `docs/plans/2025-05-25-pipeline-ui-improvements-plan.md` |
 
 ## Dependencies
 
@@ -85,7 +92,7 @@ stateDiagram-v2
 - ~~`uuid` columns for user refs (`owner_user_id`, `set_by_user_id`, `resolved_by`, `author_user_id`) have no FKs yet~~ — resolved in Phase 8 (FKs added with `ON DELETE SET NULL`).
 - Optional ESLint tweak: `@typescript-eslint/no-unused-vars` with `argsIgnorePattern: '^_'` to silence warnings on provider interfaces (currently 6 lint warnings, 0 errors).
 - `drizzle-kit` `customType` emits `"undefined"."typename"` in ALTER statements — hand-edit required if we retrofit an existing column.
-- `source_pages` has no generated `tsv` column. `searchSourcePages` computes `to_tsvector` inline at query time, bypassing the GIN path. If chat-search latency suffers, add a generated tsv + GIN index migration.
+- `source_pages` has no generated `tsv` column. `searchSourcePages` computes `to_tsvector` inline at query time, bypassing the GIN path. **Addressed in Phase 10c (`docs/plans/2025-05-25-pipeline-ui-improvements-plan.md` Task 8).**
 - `recommendations.status` filter intentionally deferred from `/api/search`. Status lives on the `recommendation_statuses` history table and needs a latest-per-rec lateral join — picking up in Phase 6 with the table UI.
 - `/api/recommendations` is kept as the v1 keyword endpoint with the existing `snippet`/`rank` shape. Retire in Phase 6 once the table UI consumes `/api/keyword-search`.
 - No rate limiting on the new search endpoints. `/api/chat-search` is the costliest (LLM streaming) — add before Phase 8 / hosted mode.

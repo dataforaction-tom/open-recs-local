@@ -1,7 +1,7 @@
 # Plan
 
-> Last updated: 2026-05-11
-> Status: Phase 9 complete — Phase 10 (polish + docs + 1.0 release) up next
+> Last updated: 2026-05-25
+> Status: Phase 10 — polish + 1.0 release (pipeline perf + UI enhancements underway)
 
 ## Objective
 
@@ -17,7 +17,13 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 
 ## Current phase
 
-**Phase 10 — Polish + docs + 1.0 release.** README + `docs/running-locally.md`, Playwright E2E for both modes, real email backend (Resend / SMTP), edit/delete UI for progress updates, NetworkViz, mobile layout for the source viewer, `@tailwindcss/typography`, evidence-file uploads, `?status=` filter, audit log, account deletion / GDPR export, custom date ranges + CSV export on analytics. Ship as 1.0.
+**Phase 10 — Polish + 1.0 release.** Pipeline performance + UI enhancements per `docs/plans/2025-05-25-pipeline-ui-improvements-plan.md`. 
+
+Current work:
+- **Phase 10a** ✓ complete: Pipeline perf — batch taxonomy ✓, parallel LLM ✓, batch embed ✓ (bulk `UPDATE ... FROM (VALUES)`)
+- **Phase 10b** (next): UI enhancements — source list, filters, tags, metadata
+- **Phase 10c**: tsvector column migration
+- **Phase 10d**: Playwright E2E + CI + 1.0 tag
 
 ## Tasks (phase-level)
 
@@ -32,7 +38,7 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 - [x] Phase 7 — Progress updates (form, list, status transitions, EditableSelectCell)
 - [x] Phase 8 — Hosted-mode (Better-auth, ownership, admin)
 - [x] Phase 9 — Analytics (Chart.js, cache, scheduled refresh)
-- [~] **CURRENT** Phase 10 — Polish + docs + 1.0 release
+- [~] **CURRENT** Phase 10 — Pipeline perf + UI enhancements (see `docs/plans/2025-05-25-pipeline-ui-improvements-plan.md`)
 
 Before each phase after 0/1, re-enter `superpowers:writing-plans` with the design + phase exit criteria to decompose into TDD-sized tasks.
 
@@ -51,6 +57,7 @@ Before each phase after 0/1, re-enter `superpowers:writing-plans` with the desig
 | TanStack Table, not AG Grid | Lighter, fully OSS; already the direction v1 was moving | 2026-04-19 |
 | No RLS — authorization in a repository layer | Required for the mode switch to be portable and testable | 2026-04-19 |
 | MIT license | Friendlier for adoption than AGPL | 2026-04-19 |
+| Phase 10 pipeline perf + UI plan | Created `docs/plans/2025-05-25-pipeline-ui-improvements-plan.md` covering N+1 taxonomy, parallel LLM, batch embed, source list metadata, filter expansion, tag labels. | 2026-05-25 |
 
 ## Open Questions
 
