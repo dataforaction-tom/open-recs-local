@@ -1,7 +1,7 @@
 import type { Sql } from 'postgres';
 import { loadEnv } from '@/lib/env';
 import { createDb } from '@/lib/db/client';
-import { createProviders } from '@/lib/providers';
+import { listenForProviderSettingsChanges } from '@/lib/providers/config';
 import { emitJobEvent } from '@/lib/jobs/events';
 import { createQueue, type Queue } from '@/lib/jobs/queue';
 import { registerHandlers } from '@/lib/jobs/handlers';
@@ -12,14 +12,18 @@ import { registerHandlers } from '@/lib/jobs/handlers';
 async function main(): Promise<void> {
   let sql: Sql | undefined;
   let queue: Queue | undefined;
+  let unlisten: (() => Promise<void>) | undefined;
   let shuttingDown = false;
 
   try {
     const env = loadEnv();
     const dbContext = createDb(env.DATABASE_URL);
     sql = dbContext.sql;
-    const providers = createProviders(env);
     queue = await createQueue({ connectionString: env.DATABASE_URL });
+
+    // Invalidate the in-process provider cache the moment a provider setting
+    // changes, so DB-config edits take effect on the next job without a restart.
+    ({ unlisten } = await listenForProviderSettingsChanges(sql));
 
     // Attach signal handlers BEFORE registerHandlers so that a slow
     // registerHandlers (likely in Task 5+) can still be interrupted cleanly.
@@ -28,6 +32,7 @@ async function main(): Promise<void> {
       if (shuttingDown) return;
       shuttingDown = true;
       console.log(`[worker] ${reason} — draining`);
+      await unlisten?.().catch(() => {});
       await queue?.stop().catch(() => {});
       await sql?.end({ timeout: 5 }).catch(() => {});
       process.exit(0);
@@ -59,7 +64,7 @@ async function main(): Promise<void> {
     const boundSql = sql;
     const emit = (jobId: string, event: Parameters<typeof emitJobEvent>[2]): Promise<void> =>
       emitJobEvent(boundSql, jobId, event);
-    await registerHandlers({ queue, db: dbContext.db, providers, env, emit });
+    await registerHandlers({ queue, db: dbContext.db, env, emit });
 
     console.log('[worker] ready');
   } catch (err) {

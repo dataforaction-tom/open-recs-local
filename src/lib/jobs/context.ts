@@ -34,3 +34,15 @@ export type JobContext = {
   env: Env;
   emit: (jobId: string, event: JobEvent) => Promise<void>;
 };
+
+/**
+ * Worker-level dependencies. Unlike {@link JobContext} this carries no
+ * `providers` — the worker no longer builds them once at boot. Instead each job
+ * resolves the effective providers from DB config at invocation time (via
+ * `resolveProviders`, defaulting to `getProviders`), so settings changes apply
+ * without a restart.
+ */
+export type JobDeps = Omit<JobContext, 'providers'> & {
+  /** Resolve the effective providers for a single job. Defaults to getProviders. */
+  resolveProviders?: (db: Db, env: Env) => Promise<Providers>;
+};
