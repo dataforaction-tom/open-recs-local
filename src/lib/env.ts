@@ -69,10 +69,16 @@ const providerSelectors = {
 // `pnpm dev` zero-config in local mode. Hosted mode requires a real value.
 const LOCAL_FILE_TOKEN_DEFAULT = 'local-dev-only-file-token-secret';
 
+// Like LOCAL_FILE_TOKEN_DEFAULT, a non-secret stand-in so `pnpm dev` boots
+// zero-config in local mode. Provider API keys encrypted with this dev key are
+// only as safe as the local box. Hosted mode requires a real 32+ char value.
+const LOCAL_PROVIDER_SECRET_DEFAULT = 'local-dev-only-provider-secret-key';
+
 const local = z.object({
   APP_MODE: z.literal('local'),
   DATABASE_URL: databaseUrl,
   FILE_TOKEN_SECRET: z.string().min(32).default(LOCAL_FILE_TOKEN_DEFAULT),
+  PROVIDER_SECRET_KEY: z.string().min(32).default(LOCAL_PROVIDER_SECRET_DEFAULT),
   ...providerSelectors,
 });
 
@@ -82,6 +88,7 @@ const hosted = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: z.string().url(),
   FILE_TOKEN_SECRET: z.string().min(32),
+  PROVIDER_SECRET_KEY: z.string().min(32),
   ...providerSelectors,
 });
 
