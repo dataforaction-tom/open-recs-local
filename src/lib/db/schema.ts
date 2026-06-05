@@ -540,3 +540,24 @@ export const analyticsCache = pgTable('analytics_cache', {
   value: jsonb('value').$type<Record<string, unknown>>().notNull(),
   computedAt: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Configurable provider kinds stored in `provider_settings`. These map onto the
+// LLM / chat / embedding / OCR provider selectors so DB rows can override the
+// env-derived defaults at runtime (see `src/lib/providers/config.ts`).
+export const PROVIDER_KINDS = ['llm', 'chat', 'embedding', 'ocr'] as const;
+export type ProviderKind = (typeof PROVIDER_KINDS)[number];
+
+// One row per configurable provider kind. `kind` is unique so the repository can
+// upsert in place. `api_key_encrypted` holds AES-256-GCM ciphertext (never
+// plaintext); decryption happens in the config loader using PROVIDER_SECRET_KEY.
+export const providerSettings = pgTable('provider_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  kind: text('kind', { enum: PROVIDER_KINDS }).notNull().unique(),
+  provider: text('provider').notNull(),
+  baseUrl: text('base_url'),
+  model: text('model'),
+  apiKeyEncrypted: text('api_key_encrypted'),
+  extra: jsonb('extra').$type<Record<string, unknown>>().notNull().default({}),
+  updatedBy: text('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
