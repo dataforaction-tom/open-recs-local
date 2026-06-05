@@ -40,6 +40,7 @@ export default async function globalSetup(): Promise<void> {
     BETTER_AUTH_SECRET: betterAuthSecret,
     BETTER_AUTH_URL: BASE_URL,
     FILE_TOKEN_SECRET: 'e2e-hosted-deterministic-secret-32+chars',
+    PROVIDER_SECRET_KEY: 'e2e-hosted-deterministic-provider-secret-32+chars',
     LLM_PROVIDER: 'fake',
     EMBEDDING_PROVIDER: 'fake',
     OCR_PROVIDER: 'fake',

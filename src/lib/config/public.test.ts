@@ -27,6 +27,7 @@ describe('getPublicConfig', () => {
       BETTER_AUTH_SECRET: 'a'.repeat(32),
       BETTER_AUTH_URL: 'http://localhost:3000',
       FILE_TOKEN_SECRET: 'a'.repeat(32),
+      PROVIDER_SECRET_KEY: 'a'.repeat(32),
     });
     const config = getPublicConfig(env);
     expect(config.appMode).toBe('hosted');

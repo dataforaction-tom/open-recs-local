@@ -34,6 +34,7 @@ describe('createProviders', () => {
       BETTER_AUTH_SECRET: 'x'.repeat(32),
       BETTER_AUTH_URL: 'http://localhost:3000',
       FILE_TOKEN_SECRET: 'x'.repeat(32),
+      PROVIDER_SECRET_KEY: 'x'.repeat(32),
     });
     // Constructing the provider opens a postgres-js client lazily; we don't
     // need the connection to actually open to verify the factory branch
