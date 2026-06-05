@@ -1,5 +1,13 @@
+import type { Sql } from 'postgres';
 import type { Env } from '../env';
+import type { Db } from '../db/client';
 import type { ProviderKind } from '../db/schema';
+import { createProviders, type Providers } from './index';
+import { decryptSecret } from '../security/secrets';
+import {
+  listProviderSettings,
+  PROVIDER_SETTINGS_CHANGED_CHANNEL,
+} from '../repositories/provider-settings';
 
 /** A provider_settings row with its API key already decrypted. */
 export type DecryptedProviderRow = {
@@ -64,4 +72,59 @@ export function mergeProviderConfig(env: Env, rows: DecryptedProviderRow[]): Env
   }
 
   return merged as Env;
+}
+
+const CACHE_TTL_MS = 30_000;
+let cache: { providers: Providers; loadedAt: number } | null = null;
+
+/** Reset the in-process provider cache (tests; NOTIFY-driven invalidation). */
+export function clearProviderCache(): void {
+  cache = null;
+}
+
+/** Read provider_settings, decrypt API keys, and merge over the env config. */
+export async function loadProviderConfig(db: Db, env: Env): Promise<Env> {
+  const rows = await listProviderSettings(db);
+  const decrypted: DecryptedProviderRow[] = rows.map((row) => ({
+    kind: row.kind,
+    provider: row.provider,
+    baseUrl: row.baseUrl,
+    model: row.model,
+    apiKey: row.apiKeyEncrypted
+      ? decryptSecret(env.PROVIDER_SECRET_KEY, row.apiKeyEncrypted)
+      : null,
+    extra: row.extra,
+  }));
+  return mergeProviderConfig(env, decrypted);
+}
+
+/**
+ * Build the effective Providers from DB config merged over env, cached
+ * in-process with a short TTL. The cache is cleared immediately by the NOTIFY
+ * listener (see listenForProviderSettingsChanges); the TTL is the safety net.
+ */
+export async function getProviders(db: Db, env: Env): Promise<Providers> {
+  const now = Date.now();
+  if (cache && now - cache.loadedAt < CACHE_TTL_MS) {
+    return cache.providers;
+  }
+  const merged = await loadProviderConfig(db, env);
+  const providers = createProviders(merged);
+  cache = { providers, loadedAt: now };
+  return providers;
+}
+
+/**
+ * LISTEN on the provider-settings channel and clear the cache on any change.
+ * Call once per long-lived process (the worker). Returns the unlisten cleanup.
+ * Uses the postgres-js `listen` API (the same client type the worker holds, and
+ * the same wrapper shape as `subscribeJobEvents` in src/lib/jobs/events.ts).
+ */
+export async function listenForProviderSettingsChanges(
+  sql: Sql,
+): Promise<{ unlisten: () => Promise<void> }> {
+  const subscription = await sql.listen(PROVIDER_SETTINGS_CHANGED_CHANNEL, () => {
+    clearProviderCache();
+  });
+  return { unlisten: subscription.unlisten };
 }
