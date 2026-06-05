@@ -2,7 +2,7 @@ import { streamText } from 'ai';
 import { z } from 'zod';
 import { createDb, type DbClient } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
-import { createProviders } from '@/lib/providers';
+import { getProviders } from '@/lib/providers/config';
 import { getChatModel } from '@/lib/providers/llm/chat-model';
 import type { RepoContext } from '@/lib/repositories/types';
 import { searchSourcePages } from '@/lib/services/search';
@@ -60,11 +60,12 @@ export async function POST(req: Request): Promise<Response> {
     return jsonError(503, 'no streaming chat model configured');
   }
 
-  const providers = createProviders(env);
-
   let client: DbClient | undefined;
   try {
     client = createDb(env.DATABASE_URL);
+    // DB-aware provider resolution so saved provider settings take effect on the
+    // web read path too (cached in-process by getProviders).
+    const providers = await getProviders(client.db, env);
     const auth = await providers.auth.getContext(req);
     const ctx: RepoContext = { db: client.db, auth };
 
