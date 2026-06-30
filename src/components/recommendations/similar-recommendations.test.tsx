@@ -12,8 +12,8 @@ describe('SimilarRecommendations', () => {
     render(
       <SimilarRecommendations
         rows={[
-          { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', title: 'Sibling A', sourceSlug: 'src-a', distance: 0.1 },
-          { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', title: 'Sibling B', sourceSlug: 'src-b', distance: 0.2 },
+          { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', title: 'Sibling A', sourceSlug: 'src-a', sourceTitle: 'Source A', distance: 0.1 },
+          { id: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', title: 'Sibling B', sourceSlug: 'src-b', sourceTitle: 'Source B', distance: 0.2 },
         ]}
       />,
     );

@@ -27,7 +27,7 @@ export function SimilarRecommendations({ rows }: { rows: SimilarRec[] }) {
               href={`/sources/${row.sourceSlug}`}
               className="font-serif text-sm italic text-muted-foreground underline-offset-4 hover:text-accent hover:underline"
             >
-              {row.sourceSlug}
+              {row.sourceTitle ?? row.sourceSlug}
             </Link>
           </li>
         ))}

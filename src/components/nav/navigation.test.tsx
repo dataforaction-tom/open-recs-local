@@ -33,10 +33,10 @@ const hosted: PublicConfig = {
   features: { auth: true, ownership: true, admin: true },
 };
 
-function renderNav(config: PublicConfig) {
+function renderNav(config: PublicConfig, isAdmin = false) {
   return render(
     <ConfigProvider value={config}>
-      <Navigation />
+      <Navigation isAdmin={isAdmin} />
     </ConfigProvider>,
   );
 }
@@ -55,9 +55,14 @@ describe('Navigation', () => {
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
   });
 
-  it('shows the Admin link in hosted mode', () => {
-    renderNav(hosted);
+  it('shows the Admin link in hosted mode for admin users', () => {
+    renderNav(hosted, true);
     expect(screen.getByRole('link', { name: 'Admin' })).toBeInTheDocument();
+  });
+
+  it('hides the Admin link in hosted mode for non-admin users', () => {
+    renderNav(hosted, false);
+    expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
   });
 
   it('marks the active route via aria-current', () => {

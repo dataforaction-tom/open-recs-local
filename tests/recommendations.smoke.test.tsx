@@ -97,6 +97,7 @@ describe('Recommendation detail pieces (smoke)', () => {
               id: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
               title: 'Establish a board-level risk committee',
               sourceSlug: 'sample-report',
+              sourceTitle: 'Sample report',
               distance: 0.04,
             },
           ]}

@@ -153,6 +153,7 @@ export type SimilarRec = {
   id: string;
   title: string;
   sourceSlug: string;
+  sourceTitle: string;
   distance: number;
 };
 
@@ -173,6 +174,7 @@ export async function findSimilarRecommendations(
     id: string;
     title: string;
     sourceSlug: string;
+    sourceTitle: string;
     distance: number | string;
   }>(sql`
     WITH self AS (
@@ -182,6 +184,7 @@ export async function findSimilarRecommendations(
       r.id::text     AS "id",
       r.title        AS "title",
       s.slug         AS "sourceSlug",
+      s.title        AS "sourceTitle",
       (r.embedding <=> (SELECT embedding FROM self)) AS "distance"
     FROM recommendations r
     JOIN sources s ON s.id = r.source_id
@@ -196,6 +199,7 @@ export async function findSimilarRecommendations(
     id: row.id,
     title: row.title,
     sourceSlug: row.sourceSlug,
+    sourceTitle: row.sourceTitle,
     distance: Number(row.distance),
   }));
 }
