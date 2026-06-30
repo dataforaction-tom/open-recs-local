@@ -46,6 +46,13 @@ export function ProgressUpdatesList({ rows }: { rows: ProgressUpdateRow[] }) {
                 >
                   {relativeFromNow(row.createdAt)}
                 </time>
+                {row.authorName ? (
+                  <span className="text-sm text-muted-foreground">
+                    by {row.authorName}
+                  </span>
+                ) : row.authorUserId ? (
+                  <span className="text-sm text-muted-foreground">by User</span>
+                ) : null}
                 {row.evidenceType && (
                   <Badge variant="outline">{row.evidenceType.name}</Badge>
                 )}

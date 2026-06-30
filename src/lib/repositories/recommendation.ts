@@ -113,6 +113,10 @@ export type RecommendationDetail = {
   sourceTitle: string;
   pageAnchor: number | null;
   hasEmbedding: boolean;
+  confidence: 'high' | 'medium' | 'low' | null;
+  targetOrganization: string | null;
+  priorityTimescaleName: string | null;
+  notes: string | null;
 };
 
 export async function findRecommendationById(
@@ -130,6 +134,10 @@ export async function findRecommendationById(
     sourceTitle: string;
     pageAnchor: number | null;
     hasEmbedding: boolean;
+    confidence: 'high' | 'medium' | 'low' | null;
+    targetOrganization: string | null;
+    priorityTimescaleName: string | null;
+    notes: string | null;
   }>(sql`
     SELECT
       r.id::text       AS "id",
@@ -139,9 +147,14 @@ export async function findRecommendationById(
       s.slug           AS "sourceSlug",
       s.title          AS "sourceTitle",
       r.page_anchor    AS "pageAnchor",
-      (r.embedding IS NOT NULL) AS "hasEmbedding"
+      (r.embedding IS NOT NULL) AS "hasEmbedding",
+      r.confidence     AS "confidence",
+      r.target_organization AS "targetOrganization",
+      pt.name          AS "priorityTimescaleName",
+      r.notes          AS "notes"
     FROM recommendations r
     JOIN sources s ON s.id = r.source_id
+    LEFT JOIN priority_timescales pt ON pt.id = r.priority_timescale_id
     WHERE r.id = ${id}::uuid
       AND ${auth}
     LIMIT 1

@@ -42,6 +42,8 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
                 href={`/sources/${token.slug}`}
                 className="text-accent underline-offset-4 hover:underline"
                 title={`page ${token.page}`}
+                target="_blank"
+                rel="noopener noreferrer"
               >
                 [{token.slug}#p{token.page}]
               </Link>

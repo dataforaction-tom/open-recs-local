@@ -79,6 +79,10 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
           sourceSlug={rec.sourceSlug}
           sourceTitle={rec.sourceTitle}
           pageAnchor={rec.pageAnchor}
+          confidence={rec.confidence}
+          targetOrganization={rec.targetOrganization}
+          priorityTimescaleName={rec.priorityTimescaleName}
+          notes={rec.notes}
         />
 
         <Tabs defaultValue="overview">

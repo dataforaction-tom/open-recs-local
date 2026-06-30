@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { useLocalStorage } from '@/lib/hooks/use-local-storage';
 import { useMediaQuery } from '@/lib/hooks/use-media-query';
@@ -19,11 +19,43 @@ export type SourceViewerProps = {
   pdfUrl: string;
 };
 
+/**
+ * Parse a `#page=N` hash from the URL into a 1-based page number.
+ * Returns `undefined` when the hash is absent or doesn't match the
+ * expected shape, so callers can fall back to page 1.
+ */
+function pageFromHash(hash: string): number | undefined {
+  const match = /[#&?]page=(\d+)/.exec(hash);
+  if (!match) return undefined;
+  const n = Number(match[1]);
+  return Number.isFinite(n) && n >= 1 ? n : undefined;
+}
+
 export function SourceViewer({ title, pages, pdfUrl }: SourceViewerProps) {
   const [savedSize, setSavedSize] = useLocalStorage<number>(SPLIT_KEY, 50);
   const [totalPages, setTotalPages] = useState<number | undefined>(pages.length || undefined);
-  const { activePage, setActivePage } = useScrollSync({ initialPage: 1 });
+  // Citation deep-linking: honour a `#page=N` hash so URLs generated from
+  // citations jump straight to the referenced page. Read it once on mount
+  // (lazy init so SSR doesn't touch `window`) and keep listening for
+  // hashchange so in-page navigation to a different page anchor also works.
+  const [initialPage, setInitialPage] = useState<number>(() =>
+    typeof window === 'undefined' ? 1 : pageFromHash(window.location.hash) ?? 1,
+  );
+  const { activePage, setActivePage } = useScrollSync({ initialPage });
   const isWide = useMediaQuery(MD_QUERY);
+
+  useEffect(() => {
+    const apply = () => {
+      const page = pageFromHash(window.location.hash);
+      if (page !== undefined) {
+        setActivePage(page);
+        setInitialPage(page);
+      }
+    };
+    apply();
+    window.addEventListener('hashchange', apply);
+    return () => window.removeEventListener('hashchange', apply);
+  }, [setActivePage]);
 
   const handleTotalPages = (count: number) => setTotalPages(count);
 
