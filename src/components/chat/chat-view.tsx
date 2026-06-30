@@ -120,7 +120,26 @@ export function ChatView() {
     [messages, nextId, streaming],
   );
 
+  const regenerate = useCallback(() => {
+    if (streaming) return;
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    if (!lastUser) return;
+    // Drop the trailing assistant answer and the user turn we're re-asking
+    // so ask() can re-append a fresh user + assistant pair without leaving
+    // duplicates behind.
+    setMessages((prev) => {
+      const trimmed = [...prev];
+      const last = trimmed[trimmed.length - 1];
+      if (last && last.role === 'assistant') trimmed.pop();
+      const next = trimmed[trimmed.length - 1];
+      if (next && next.role === 'user') trimmed.pop();
+      return trimmed;
+    });
+    void ask(lastUser.content);
+  }, [ask, messages, streaming]);
+
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const lastAssistantId = lastAssistant?.id;
   const retrieved = lastAssistant?.retrieved ?? [];
 
   return (
@@ -157,6 +176,17 @@ export function ChatView() {
                     Thinking…
                   </p>
                 )}
+                {m.role === 'assistant' &&
+                  m.id === lastAssistantId &&
+                  !streaming && (
+                    <button
+                      type="button"
+                      onClick={regenerate}
+                      className="ml-4 mt-2 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-accent hover:underline"
+                    >
+                      Regenerate
+                    </button>
+                  )}
               </li>
             ))}
           </ol>

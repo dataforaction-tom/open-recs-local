@@ -33,19 +33,19 @@ export function SourceUploadForm() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [progress, setProgress] = useState<ProgressState | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
-  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  /**
+   * Shared upload entry point. Both the form submit and the drag-and-drop
+   * handler funnel through here so the POST + SSE wiring stays in one place.
+   * The optional `title` lets the drop path reuse the title input value
+   * without coupling this function to a specific DOM source.
+   */
+  function startUpload(file: File, title?: string) {
     setError(null);
     setProgress(null);
-    const file = fileRef.current?.files?.[0];
-    if (!file) {
-      setError('Pick a PDF first.');
-      return;
-    }
     const formData = new FormData();
     formData.set('file', file);
-    const title = titleRef.current?.value.trim();
     if (title) formData.set('title', title);
 
     startTransition(async () => {
@@ -68,6 +68,44 @@ export function SourceUploadForm() {
       if (titleRef.current) titleRef.current.value = '';
       router.refresh();
     });
+  }
+
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const file = fileRef.current?.files?.[0];
+    if (!file) {
+      setError('Pick a PDF first.');
+      return;
+    }
+    const title = titleRef.current?.value.trim();
+    startUpload(file, title);
+  }
+
+  function onDragOver(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    if (event.dataTransfer.types.includes('Files')) {
+      setIsDragging(true);
+    }
+  }
+
+  function onDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    // Only clear when leaving the section itself, not a child element.
+    if (event.currentTarget === event.target) {
+      setIsDragging(false);
+    }
+  }
+
+  function onDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    const file = event.dataTransfer.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      setError('Only PDF files are accepted.');
+      return;
+    }
+    const title = titleRef.current?.value.trim();
+    startUpload(file, title);
   }
 
   function subscribeToJob(jobId: string) {
@@ -123,7 +161,14 @@ export function SourceUploadForm() {
   return (
     <section
       aria-labelledby="upload-heading"
-      className="border border-rule-strong bg-accent-soft/40 p-8"
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={
+        isDragging
+          ? 'border border-dashed border-accent bg-accent-soft/40 p-8 outline-none'
+          : 'border border-rule-strong bg-accent-soft/40 p-8'
+      }
     >
       <div className="grid gap-10 md:grid-cols-[1fr_18rem]">
         <form className="space-y-5" onSubmit={onSubmit} noValidate>
@@ -159,6 +204,9 @@ export function SourceUploadForm() {
               accept="application/pdf"
               className="bg-background"
             />
+            <p className="font-serif text-xs italic text-muted-foreground">
+              Drag and drop a PDF anywhere in this panel, or pick a file above.
+            </p>
           </div>
 
           {error && (

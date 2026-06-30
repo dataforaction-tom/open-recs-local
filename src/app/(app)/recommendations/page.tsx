@@ -140,10 +140,18 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
 
         <div className="flex items-baseline justify-between border-b border-rule-strong pb-3">
           <h2 className="text-sm font-medium">Inventory</h2>
-          <span className="eyebrow">
-            {rows.length} {rows.length === 1 ? 'recommendation' : 'recommendations'}
-            {hasPrev ? ` · page ${page}` : ''}
-          </span>
+          <div className="flex items-baseline gap-4">
+            <Link
+              href="/api/recommendations/export"
+              className="text-sm underline-offset-4 hover:text-accent hover:underline"
+            >
+              Export CSV
+            </Link>
+            <span className="eyebrow">
+              {rows.length} {rows.length === 1 ? 'recommendation' : 'recommendations'}
+              {hasPrev ? ` · page ${page}` : ''}
+            </span>
+          </div>
         </div>
 
         <RecommendationsTable rows={rows} onStatusTransition={transitionStatus} />
