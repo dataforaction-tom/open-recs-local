@@ -36,7 +36,7 @@ describe('ChatView', () => {
   });
 
   it('shows the example prompts when there are no messages yet', () => {
-    render(<ChatView />);
+    render(<ChatView hasSources />);
     expect(
       screen.getByText(/board oversight of risk/i),
     ).toBeInTheDocument();
@@ -54,7 +54,7 @@ describe('ChatView', () => {
     });
     vi.mocked(fetch).mockResolvedValueOnce(response);
 
-    render(<ChatView />);
+    render(<ChatView hasSources />);
     const user = userEvent.setup();
     await user.type(
       screen.getByLabelText(/ask a question/i),
@@ -87,7 +87,7 @@ describe('ChatView', () => {
       fetchMock.mockResolvedValueOnce(reply(`reply ${i + 1}`));
     }
 
-    render(<ChatView />);
+    render(<ChatView hasSources />);
     const user = userEvent.setup();
     const input = screen.getByLabelText(/ask a question/i);
     const ask = screen.getByRole('button', { name: 'Ask' });
@@ -112,7 +112,7 @@ describe('ChatView', () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       jsonResponse(503, { error: 'no streaming chat model configured' }),
     );
-    render(<ChatView />);
+    render(<ChatView hasSources />);
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/ask a question/i), 'anything');
     await user.click(screen.getByRole('button', { name: 'Ask' }));

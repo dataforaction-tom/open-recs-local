@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { sources } from '../db/schema';
+import { sources, type SourceStatus } from '../db/schema';
 import type { RepoContext } from './types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -104,7 +104,7 @@ export type RecentSource = {
  */
 export async function listRecentSources(
   ctx: RepoContext,
-  args: { limit?: number } = {},
+  args: { limit?: number; q?: string; status?: SourceStatus } = {},
 ): Promise<RecentSource[]> {
   const limit = args.limit ?? 20;
   const viewerId = ctx.auth.user?.id;
@@ -113,6 +113,19 @@ export async function listRecentSources(
     : viewerId && UUID_RE.test(viewerId)
       ? sql`(s.is_private = FALSE OR s.owner_user_id = ${viewerId}::uuid)`
       : sql`s.is_private = FALSE`;
+
+  // Build a single WHERE clause that always applies the auth filter, then
+  // optionally narrows on title ILIKE and/or exact status. Each term is
+  // parameterized by drizzle's `sql` template — no string concatenation of
+  // user input reaches the driver.
+  const conditions: ReturnType<typeof sql>[] = [authFilter];
+  if (args.q !== undefined && args.q.length > 0) {
+    conditions.push(sql`s.title ILIKE '%' || ${args.q} || '%'`);
+  }
+  if (args.status !== undefined) {
+    conditions.push(sql`s.status = ${args.status}`);
+  }
+  const where = conditions.reduce((acc, cond) => sql`${acc} AND ${cond}`);
 
   const rows = await ctx.db.execute<{
     id: string;
@@ -128,7 +141,7 @@ export async function listRecentSources(
       s.status         AS "status",
       s.created_at     AS "createdAt"
     FROM ${sources} s
-    WHERE ${authFilter}
+    WHERE ${where}
     ORDER BY s.created_at DESC
     LIMIT ${limit}
   `);

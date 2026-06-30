@@ -6,12 +6,14 @@ import { loadEnv } from '@/lib/env';
 import { createProviders } from '@/lib/providers';
 import { listRecentRecommendations } from '@/lib/repositories/recommendation';
 import { getLatestStatuses } from '@/lib/repositories/recommendation-status';
+import { listRecentSources } from '@/lib/repositories/jobs-list';
 import { searchRecommendations } from '@/lib/services/search';
 import {
   RecommendationsTable,
   type RecommendationRow,
 } from '@/components/recommendations/recommendations-table';
 import { RecommendationsIndexControls } from '@/components/recommendations/recommendations-index-controls';
+import { EmptyCorpusNotice } from '@/components/shared/empty-corpus-notice';
 import type { RepoContext } from '@/lib/repositories/types';
 import { transitionStatus } from './[id]/actions';
 
@@ -53,6 +55,9 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
     const req = new Request('http://localhost/recommendations', { headers: headersList });
     const auth = await providers.auth.getContext(req);
     const ctx: RepoContext = { db: client.db, auth };
+
+    const recentSources = await listRecentSources(ctx, { limit: 1 });
+    const hasSources = recentSources.length > 0;
 
     const args = parsed.success ? parsed.data : {};
     const trimmedQ = args.q?.trim() ?? '';
@@ -154,7 +159,11 @@ export default async function RecommendationsIndexPage({ searchParams }: SearchP
           </div>
         </div>
 
-        <RecommendationsTable rows={rows} onStatusTransition={transitionStatus} />
+        {!hasSources && rows.length === 0 && trimmedQ.length < 2 ? (
+          <EmptyCorpusNotice />
+        ) : (
+          <RecommendationsTable rows={rows} onStatusTransition={transitionStatus} />
+        )}
 
         {(hasPrev || hasNext) && (
           <nav className="flex items-center justify-between pt-2">

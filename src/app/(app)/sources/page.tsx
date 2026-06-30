@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import Link from 'next/link';
+import { z } from 'zod';
 import { getSharedDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { getProviders } from '@/lib/providers/config';
@@ -7,6 +8,7 @@ import { listRecentSources } from '@/lib/repositories/jobs-list';
 import type { RepoContext } from '@/lib/repositories/types';
 import { SourceUploadForm } from '@/components/sources/source-upload-form';
 import type { SourceStatus } from '@/lib/db/schema';
+import { SourcesIndexControls } from '@/components/sources/sources-index-controls';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +20,20 @@ const STATUS_LABEL: Record<SourceStatus, string> = {
   ready: 'Ready',
   failed: 'Failed',
 };
+
+const QuerySchema = z.object({
+  q: z.string().max(200).optional(),
+  status: z
+    .enum(['pending', 'parsing', 'extracting', 'embedding', 'ready', 'failed'])
+    .optional(),
+});
+
+type SearchProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+function singleString(v: string | string[] | undefined): string | undefined {
+  if (Array.isArray(v)) return v[0];
+  return v ?? undefined;
+}
 
 function statusKey(status: SourceStatus): string {
   if (status === 'ready') return 'done';
@@ -34,7 +50,7 @@ function formatDate(d: Date): string {
   }).format(d);
 }
 
-export default async function SourcesPage() {
+export default async function SourcesPage({ searchParams }: SearchProps) {
   const env = loadEnv();
 
   const { db } = await getSharedDb(env.DATABASE_URL);
@@ -45,10 +61,20 @@ export default async function SourcesPage() {
   const auth = await providers.auth.getContext(req);
   const ctx: RepoContext = { db, auth };
 
+  const raw = await searchParams;
+  const parsed = QuerySchema.safeParse({
+    q: singleString(raw['q']),
+    status: singleString(raw['status']),
+  });
+  const args = parsed.success ? parsed.data : {};
+
   // listRecentSources returns [] when the pgboss schema isn't installed
   // yet (fresh DB before the worker has run). No try/catch needed — the
   // function handles the undefined-table error internally.
-  const sources = await listRecentSources(ctx, { limit: 50 });
+  const listArgs: { limit: number; q?: string; status?: SourceStatus } = { limit: 50 };
+  if (args.q !== undefined) listArgs.q = args.q;
+  if (args.status !== undefined) listArgs.status = args.status;
+  const sources = await listRecentSources(ctx, listArgs);
 
   return (
     <div className="space-y-14">
@@ -64,6 +90,8 @@ export default async function SourcesPage() {
 
       <SourceUploadForm />
 
+      <SourcesIndexControls initialQ={args.q ?? ''} initialStatus={args.status} />
+
       <section className="space-y-5">
         <div className="flex items-baseline justify-between border-b border-rule-strong pb-3">
           <h2 className="text-sm font-medium">Catalogue</h2>
@@ -72,7 +100,15 @@ export default async function SourcesPage() {
 
         {sources.length === 0 ? (
           <p className="py-8 font-serif italic text-muted-foreground">
-            No sources yet. Upload a PDF above to begin.
+            No sources match the current filters. Upload a PDF above to begin,
+            or{' '}
+            <Link
+              href="/sources"
+              className="underline underline-offset-4 hover:text-accent"
+            >
+              clear the filters
+            </Link>
+            .
           </p>
         ) : (
           <ul className="divide-y divide-rule">

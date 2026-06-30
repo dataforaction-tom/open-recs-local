@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { ChatInput } from './chat-input';
 import { MessageBubble, type ChatMessage } from './message-bubble';
+import { EmptyCorpusNotice } from '@/components/shared/empty-corpus-notice';
 
 const EXAMPLES = [
   'What do these reports say about board oversight of risk?',
@@ -34,7 +35,7 @@ function parseRetrievedHeader(header: string | null): Retrieved {
   }
 }
 
-export function ChatView() {
+export function ChatView({ hasSources }: { hasSources: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -146,26 +147,30 @@ export function ChatView() {
     <div className="grid grid-cols-1 gap-10 md:grid-cols-[1fr_18rem]">
       <div className="flex min-h-[24rem] flex-col gap-6">
         {messages.length === 0 ? (
-          <div className="space-y-4">
-            <p className="font-serif text-base italic text-muted-foreground">
-              Try one of these to start, or ask anything about the documents
-              already in the library.
-            </p>
-            <ul className="space-y-2">
-              {EXAMPLES.map((example) => (
-                <li key={example}>
-                  <button
-                    type="button"
-                    onClick={() => ask(example)}
-                    disabled={streaming}
-                    className="border border-rule bg-paper-2 px-3 py-2 text-left font-serif text-sm leading-relaxed text-foreground transition-colors hover:border-accent hover:bg-accent-soft/40 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {example}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          hasSources ? (
+            <div className="space-y-4">
+              <p className="font-serif text-base italic text-muted-foreground">
+                Try one of these to start, or ask anything about the documents
+                already in the library.
+              </p>
+              <ul className="space-y-2">
+                {EXAMPLES.map((example) => (
+                  <li key={example}>
+                    <button
+                      type="button"
+                      onClick={() => ask(example)}
+                      disabled={streaming}
+                      className="border border-rule bg-paper-2 px-3 py-2 text-left font-serif text-sm leading-relaxed text-foreground transition-colors hover:border-accent hover:bg-accent-soft/40 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {example}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <EmptyCorpusNotice />
+          )
         ) : (
           <ol className="space-y-6">
             {messages.map((m) => (

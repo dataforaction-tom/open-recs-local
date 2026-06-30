@@ -77,6 +77,22 @@ export default async function AdminPage() {
           </div>
           <RoleTable rows={users} onChange={changeUserRole} />
         </section>
+
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between border-b border-rule-strong pb-2">
+            <h2 className="text-sm font-medium">Provider settings</h2>
+          </div>
+          <p className="font-mono text-xs text-muted-foreground">
+            Override LLM, chat, embedding, and OCR providers at runtime on the{' '}
+            <Link
+              href="/admin/providers"
+              className="text-accent underline-offset-4 hover:underline"
+            >
+              provider settings
+            </Link>{' '}
+            page.
+          </p>
+        </section>
       </div>
     );
   } finally {
