@@ -104,6 +104,11 @@ export function SourceUploadForm() {
 
     es.onerror = () => {
       es.close();
+      setProgress((p) => ({
+        phase: p?.phase ?? null,
+        percent: p?.percent ?? 0,
+        message: 'Live progress lost — the job is still running. Refresh to check status.',
+      }));
     };
   }
 

@@ -1,8 +1,8 @@
 import { headers } from 'next/headers';
 import { z } from 'zod';
-import { createDb } from '@/lib/db/client';
+import { getSharedDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
-import { createProviders } from '@/lib/providers';
+import { getProviders } from '@/lib/providers/config';
 import type { RepoContext } from '@/lib/repositories/types';
 import { searchRecommendations } from '@/lib/services/search';
 import { SearchForm } from '@/components/search/search-form';
@@ -72,38 +72,35 @@ async function SearchResultsSection({
   args: z.infer<typeof QuerySchema>;
 }) {
   const env = loadEnv();
-  const providers = createProviders(env);
-  const client = createDb(env.DATABASE_URL);
-  try {
-    const headersList = await headers();
-    const req = new Request('http://localhost/search', { headers: headersList });
-    const auth = await providers.auth.getContext(req);
-    const ctx: RepoContext = { db: client.db, auth };
+  const { db } = await getSharedDb(env.DATABASE_URL);
+  const providers = await getProviders(db, env);
 
-    const filters: { sourceId?: string; thematicAreaId?: string } = {};
-    if (args.source) filters.sourceId = args.source;
-    if (args.theme) filters.thematicAreaId = args.theme;
+  const headersList = await headers();
+  const req = new Request('http://localhost/search', { headers: headersList });
+  const auth = await providers.auth.getContext(req);
+  const ctx: RepoContext = { db, auth };
 
-    const rows = await searchRecommendations(
-      { ctx, q, mode, filters },
-      mode === 'hybrid' ? { embedding: providers.embedding } : {},
-    );
+  const filters: { sourceId?: string; thematicAreaId?: string } = {};
+  if (args.source) filters.sourceId = args.source;
+  if (args.theme) filters.thematicAreaId = args.theme;
 
-    return (
-      <div className="space-y-4">
-        <div className="flex items-baseline justify-between border-b border-rule-strong pb-3">
-          <h2 className="text-sm font-medium">
-            Results for{' '}
-            <span className="font-mono text-accent">“{q}”</span>
-          </h2>
-          <span className="eyebrow">
-            {rows.length} {rows.length === 1 ? 'match' : 'matches'} · {mode}
-          </span>
-        </div>
-        <SearchResults rows={rows} mode={mode} />
+  const rows = await searchRecommendations(
+    { ctx, q, mode, filters },
+    mode === 'hybrid' ? { embedding: providers.embedding } : {},
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-baseline justify-between border-b border-rule-strong pb-3">
+        <h2 className="text-sm font-medium">
+          Results for{' '}
+          <span className="font-mono text-accent">“{q}”</span>
+        </h2>
+        <span className="eyebrow">
+          {rows.length} {rows.length === 1 ? 'match' : 'matches'} · {mode}
+        </span>
       </div>
-    );
-  } finally {
-    await client.sql.end({ timeout: 5 }).catch(() => {});
-  }
+      <SearchResults rows={rows} mode={mode} />
+    </div>
+  );
 }

@@ -8,7 +8,7 @@ import { loadEnv } from '@/lib/env';
 import { createProviders } from '@/lib/providers';
 import { createProgressUpdate } from '@/lib/repositories/progress-update';
 import { appendStatus } from '@/lib/repositories/recommendation-status';
-import { updateRecommendationCore } from '@/lib/repositories/recommendation';
+import { findRecommendationByIdForEdit, updateRecommendationCore } from '@/lib/repositories/recommendation';
 import type { RepoContext } from '@/lib/repositories/types';
 import {
   ProgressUpdateInput,
@@ -94,6 +94,9 @@ export async function updateRecommendation(input: unknown): Promise<ActionResult
   const data: EditRecommendationInputT = parsed.data;
   const { ctx, close } = await buildContext();
   try {
+    const existing = await findRecommendationByIdForEdit(ctx, data.recommendationId);
+    if (!existing) return { ok: false, error: 'not_found' };
+
     const priorityIds = data.priority_timescale_slug
       ? await resolveOrCreatePriorityTimescales(ctx, [data.priority_timescale_slug])
       : [];

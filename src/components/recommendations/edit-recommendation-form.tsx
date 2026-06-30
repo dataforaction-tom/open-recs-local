@@ -38,7 +38,6 @@ type Props = {
     targetOrganization: string | null;
     notes: string | null;
     pageStart: number | null;
-    pageEnd: number | null;
     priorityTimescaleSlug: string | null;
     confidence: 'high' | 'medium' | 'low' | null;
   };
@@ -62,7 +61,6 @@ export function EditRecommendationForm({
   const orgId = useId();
   const notesId = useId();
   const pageStartId = useId();
-  const pageEndId = useId();
   const priorityId = useId();
   const confidenceId = useId();
   const [isPending, startTransition] = useTransition();
@@ -84,7 +82,6 @@ export function EditRecommendationForm({
       confidence: rec.confidence,
       notes: rec.notes,
       page_start: rec.pageStart,
-      page_end: rec.pageEnd,
       thematic_area_slugs: initialMemberships.thematic_areas,
       purpose_slugs: initialMemberships.purposes,
       target_audience_type_slugs: initialMemberships.target_audience_types,
@@ -199,18 +196,6 @@ export function EditRecommendationForm({
             type="number"
             className="bg-background"
             {...register('page_start', {
-              setValueAs: (v) => (v === '' || v === null || v === undefined ? null : Number(v)),
-            })}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor={pageEndId}>Page end</Label>
-          <Input
-            id={pageEndId}
-            type="number"
-            className="bg-background"
-            {...register('page_end', {
               setValueAs: (v) => (v === '' || v === null || v === undefined ? null : Number(v)),
             })}
           />

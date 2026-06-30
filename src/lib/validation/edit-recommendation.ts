@@ -14,7 +14,6 @@ export const EditRecommendationInput = z.object({
   confidence: z.enum(['high', 'medium', 'low']).nullable().optional(),
   notes: z.string().max(8000).nullable().optional(),
   page_start: z.number().int().nullable().optional(),
-  page_end: z.number().int().nullable().optional(),
   thematic_area_slugs: z.array(z.string()),
   purpose_slugs: z.array(z.string()),
   target_audience_type_slugs: z.array(z.string()),

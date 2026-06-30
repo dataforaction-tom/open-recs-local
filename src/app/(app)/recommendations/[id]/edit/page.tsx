@@ -92,7 +92,6 @@ export default async function EditRecommendationPage({
             targetOrganization: rec.targetOrganization,
             notes: rec.notes,
             pageStart: rec.pageAnchor,
-            pageEnd: null,
             priorityTimescaleSlug,
             confidence: rec.confidence,
           }}

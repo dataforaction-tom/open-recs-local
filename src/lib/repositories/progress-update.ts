@@ -103,6 +103,7 @@ export async function listProgressUpdates(
     LEFT JOIN progress_ratings pr ON pr.slug = pu.user_progress_rating
     WHERE pu.recommendation_id = ${recommendationId}::uuid
     ORDER BY pu.created_at DESC
+    LIMIT 50
   `);
 
   return rows.map((row) => ({

@@ -1,6 +1,6 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { createDb } from '@/lib/db/client';
+import { getSharedDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { createProviders } from '@/lib/providers';
 import {
@@ -20,30 +20,29 @@ export const dynamic = 'force-dynamic';
 export default async function AnalyticsPage() {
   const env = loadEnv();
   const providers = createProviders(env);
-  const client = createDb(env.DATABASE_URL);
+  const { db } = await getSharedDb(env.DATABASE_URL);
 
-  try {
-    const headersList = await headers();
-    const req = new Request('http://localhost/analytics', { headers: headersList });
-    const auth = await providers.auth.getContext(req);
-    const ctx: RepoContext = { db: client.db, auth };
+  const headersList = await headers();
+  const req = new Request('http://localhost/analytics', { headers: headersList });
+  const auth = await providers.auth.getContext(req);
+  const ctx: RepoContext = { db, auth };
 
-    // Hosted mode: admin-only. Local mode: open to everyone (no auth surface
-    // to gate against). Same shape as /admin's page-level role gate.
-    if (env.APP_MODE === 'hosted' && !ctx.auth.roles.includes('admin')) notFound();
+  // Hosted mode: admin-only. Local mode: open to everyone (no auth surface
+  // to gate against). Same shape as /admin's page-level role gate.
+  if (env.APP_MODE === 'hosted' && !ctx.auth.roles.includes('admin')) notFound();
 
-    // Aggregates run under the request ctx — system in local mode, admin in
-    // hosted. Both have full visibility, which matches the "global view"
-    // semantic. The cron pre-warms these keys; the page hits the cache for
-    // every visit after the first.
-    const [status, themes, cadence, timeline] = await Promise.all([
-      getGlobalRecsPerStatus(ctx),
-      getGlobalRecsPerTheme(ctx),
-      getGlobalProgressCadence(ctx),
-      getGlobalSourceTimeline(ctx),
-    ]);
+  // Aggregates run under the request ctx — system in local mode, admin in
+  // hosted. Both have full visibility, which matches the "global view"
+  // semantic. The cron pre-warms these keys; the page hits the cache for
+  // every visit after the first.
+  const [status, themes, cadence, timeline] = await Promise.all([
+    getGlobalRecsPerStatus(ctx),
+    getGlobalRecsPerTheme(ctx),
+    getGlobalProgressCadence(ctx),
+    getGlobalSourceTimeline(ctx),
+  ]);
 
-    return (
+  return (
       <div className="space-y-12">
         <header className="space-y-3">
           <div className="section-num">04 · Analytics</div>
@@ -87,7 +86,4 @@ export default async function AnalyticsPage() {
         </div>
       </div>
     );
-  } finally {
-    await client.sql.end({ timeout: 5 }).catch(() => {});
-  }
 }
