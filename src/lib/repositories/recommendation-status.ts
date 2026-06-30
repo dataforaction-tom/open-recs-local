@@ -83,6 +83,61 @@ export async function getLatestStatus(
   return map.get(recommendationId) ?? null;
 }
 
+export type StatusHistoryRow = {
+  id: string;
+  status: RecStatus;
+  note: string | null;
+  setByUserId: string | null;
+  setByName: string | null;
+  createdAt: Date;
+};
+
+/**
+ * Returns all status rows for a rec, newest first. Auth-checks via
+ * `findRecommendationById`; returns [] when the rec is invisible to the
+ * viewer or doesn't exist. LEFT JOINs `users` on `set_by_user_id` to surface
+ * `setByName` — null when the setter was local-mode (no real user) or the
+ * user row was deleted (FK is SET NULL on delete).
+ */
+export async function listStatusHistory(
+  ctx: RepoContext,
+  recommendationId: string,
+): Promise<StatusHistoryRow[]> {
+  if (!UUID_RE.test(recommendationId)) return [];
+  const rec = await findRecommendationById(ctx, recommendationId);
+  if (!rec) return [];
+
+  const rows = await ctx.db.execute<{
+    id: string;
+    status: RecStatus;
+    note: string | null;
+    setByUserId: string | null;
+    setByName: string | null;
+    createdAt: Date | string;
+  }>(sql`
+    SELECT
+      rs.id::text            AS "id",
+      rs.status              AS "status",
+      rs.note                AS "note",
+      rs.set_by_user_id::text AS "setByUserId",
+      u.name                 AS "setByName",
+      rs.created_at          AS "createdAt"
+    FROM recommendation_statuses rs
+    LEFT JOIN users u ON u.id = rs.set_by_user_id
+    WHERE rs.recommendation_id = ${recommendationId}::uuid
+    ORDER BY rs.created_at DESC
+  `);
+
+  return rows.map((row) => ({
+    id: row.id,
+    status: row.status,
+    note: row.note,
+    setByUserId: row.setByUserId,
+    setByName: row.setByName,
+    createdAt: row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt),
+  }));
+}
+
 export type AppendStatusInput = {
   recommendationId: string;
   status: RecStatus;

@@ -4,7 +4,8 @@ import { getSharedDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { getProviders } from '@/lib/providers/config';
 import type { RepoContext } from '@/lib/repositories/types';
-import { searchRecommendations } from '@/lib/services/search';
+import type { SourcePageHit } from '@/lib/services/search-sql';
+import { searchRecommendations, searchSourcePages } from '@/lib/services/search';
 import { SearchForm } from '@/components/search/search-form';
 import { SearchResults } from '@/components/search/search-results';
 
@@ -89,6 +90,17 @@ async function SearchResultsSection({
     mode === 'hybrid' ? { embedding: providers.embedding } : {},
   );
 
+  // Source pages only support the RRF (hybrid) query — keyword-only mode is
+  // not supported, and the RRF query requires an embedding provider. When no
+  // embedding provider is configured, return an empty pages array.
+  let pages: SourcePageHit[] = [];
+  if (providers.embedding) {
+    pages = await searchSourcePages(
+      { ctx, q },
+      { embedding: providers.embedding },
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-baseline justify-between border-b border-rule-strong pb-3">
@@ -100,7 +112,7 @@ async function SearchResultsSection({
           {rows.length} {rows.length === 1 ? 'match' : 'matches'} · {mode}
         </span>
       </div>
-      <SearchResults rows={rows} mode={mode} />
+      <SearchResults rows={rows} mode={mode} pages={pages} />
     </div>
   );
 }
