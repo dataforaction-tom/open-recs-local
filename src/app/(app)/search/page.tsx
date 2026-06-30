@@ -1,10 +1,13 @@
 import { headers } from 'next/headers';
 import { z } from 'zod';
-import { createDb } from '@/lib/db/client';
+import { getSharedDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
-import { createProviders } from '@/lib/providers';
+import { getProviders } from '@/lib/providers/config';
+import { listRecentSources } from '@/lib/repositories/jobs-list';
 import type { RepoContext } from '@/lib/repositories/types';
-import { searchRecommendations } from '@/lib/services/search';
+import type { SourcePageHit } from '@/lib/services/search-sql';
+import { searchRecommendations, searchSourcePages } from '@/lib/services/search';
+import { EmptyCorpusNotice } from '@/components/shared/empty-corpus-notice';
 import { SearchForm } from '@/components/search/search-form';
 import { SearchResults } from '@/components/search/search-results';
 
@@ -36,6 +39,18 @@ export default async function SearchPage({ searchParams }: SearchProps) {
   const trimmedQ = args.q?.trim() ?? '';
   const mode = args.mode ?? 'hybrid';
 
+  const env = loadEnv();
+  const { db } = await getSharedDb(env.DATABASE_URL);
+  const providers = await getProviders(db, env);
+
+  const headersList = await headers();
+  const req = new Request('http://localhost/search', { headers: headersList });
+  const auth = await providers.auth.getContext(req);
+  const ctx: RepoContext = { db, auth };
+
+  const recentSources = await listRecentSources(ctx, { limit: 1 });
+  const hasSources = recentSources.length > 0;
+
   return (
     <div className="space-y-12">
       <header className="space-y-3">
@@ -51,12 +66,14 @@ export default async function SearchPage({ searchParams }: SearchProps) {
 
       <SearchForm />
 
-      {trimmedQ.length < 2 ? (
+      {!hasSources ? (
+        <EmptyCorpusNotice />
+      ) : trimmedQ.length < 2 ? (
         <p className="font-serif text-sm italic text-muted-foreground">
           Type at least two characters and hit Search to begin.
         </p>
       ) : (
-        <SearchResultsSection q={trimmedQ} mode={mode} args={args} />
+        <SearchResultsSection q={trimmedQ} mode={mode} args={args} ctx={ctx} providers={providers} />
       )}
     </div>
   );
@@ -66,44 +83,47 @@ async function SearchResultsSection({
   q,
   mode,
   args,
+  ctx,
+  providers,
 }: {
   q: string;
   mode: 'hybrid' | 'keyword';
   args: z.infer<typeof QuerySchema>;
+  ctx: RepoContext;
+  providers: Awaited<ReturnType<typeof getProviders>>;
 }) {
-  const env = loadEnv();
-  const providers = createProviders(env);
-  const client = createDb(env.DATABASE_URL);
-  try {
-    const headersList = await headers();
-    const req = new Request('http://localhost/search', { headers: headersList });
-    const auth = await providers.auth.getContext(req);
-    const ctx: RepoContext = { db: client.db, auth };
+  const filters: { sourceId?: string; thematicAreaId?: string } = {};
+  if (args.source) filters.sourceId = args.source;
+  if (args.theme) filters.thematicAreaId = args.theme;
 
-    const filters: { sourceId?: string; thematicAreaId?: string } = {};
-    if (args.source) filters.sourceId = args.source;
-    if (args.theme) filters.thematicAreaId = args.theme;
+  const rows = await searchRecommendations(
+    { ctx, q, mode, filters },
+    mode === 'hybrid' ? { embedding: providers.embedding } : {},
+  );
 
-    const rows = await searchRecommendations(
-      { ctx, q, mode, filters },
-      mode === 'hybrid' ? { embedding: providers.embedding } : {},
+  // Source pages only support the RRF (hybrid) query — keyword-only mode is
+  // not supported, and the RRF query requires an embedding provider. When no
+  // embedding provider is configured, return an empty pages array.
+  let pages: SourcePageHit[] = [];
+  if (providers.embedding) {
+    pages = await searchSourcePages(
+      { ctx, q },
+      { embedding: providers.embedding },
     );
-
-    return (
-      <div className="space-y-4">
-        <div className="flex items-baseline justify-between border-b border-rule-strong pb-3">
-          <h2 className="text-sm font-medium">
-            Results for{' '}
-            <span className="font-mono text-accent">“{q}”</span>
-          </h2>
-          <span className="eyebrow">
-            {rows.length} {rows.length === 1 ? 'match' : 'matches'} · {mode}
-          </span>
-        </div>
-        <SearchResults rows={rows} mode={mode} />
-      </div>
-    );
-  } finally {
-    await client.sql.end({ timeout: 5 }).catch(() => {});
   }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-baseline justify-between border-b border-rule-strong pb-3">
+        <h2 className="text-sm font-medium">
+          Results for{' '}
+          <span className="font-mono text-accent">“{q}”</span>
+        </h2>
+        <span className="eyebrow">
+          {rows.length} {rows.length === 1 ? 'match' : 'matches'} · {mode}
+        </span>
+      </div>
+      <SearchResults rows={rows} mode={mode} pages={pages} />
+    </div>
+  );
 }

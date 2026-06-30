@@ -209,15 +209,10 @@ export async function approveOwnershipRequest(
   if (!row.userId) return { ok: false, error: 'no_user_for_email' };
 
   const adminId = ctx.auth.user.id && UUID_RE.test(ctx.auth.user.id) ? ctx.auth.user.id : null;
-  await ctx.db.execute(sql`
-    UPDATE sources SET owner_user_id = ${row.userId}::uuid WHERE id = ${row.sourceId}::uuid
-  `);
-  await ctx.db.execute(sql`
-    UPDATE ownership_requests
-    SET status = 'approved', resolved_at = now(),
-        resolved_by = ${adminId ? sql`${adminId}::uuid` : sql`NULL`}
-    WHERE id = ${id}::uuid
-  `);
+  await ctx.db.transaction(async (tx) => {
+    await tx.execute(sql`UPDATE sources SET owner_user_id = ${row.userId}::uuid WHERE id = ${row.sourceId}::uuid`);
+    await tx.execute(sql`UPDATE ownership_requests SET status = 'approved', resolved_at = now(), resolved_by = ${adminId ? sql`${adminId}::uuid` : sql`NULL`} WHERE id = ${id}::uuid`);
+  });
   return { ok: true };
 }
 

@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { createDb } from '@/lib/db/client';
+import { getSharedDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { createProviders } from '@/lib/providers';
 import { describeSourceAccess } from '@/lib/repositories/ownership-request';
@@ -22,25 +22,24 @@ export default async function SourceAnalyticsPage({ params }: PageProps) {
 
   const env = loadEnv();
   const providers = createProviders(env);
-  const client = createDb(env.DATABASE_URL);
+  const { db } = await getSharedDb(env.DATABASE_URL);
 
-  try {
-    const headersList = await headers();
-    const req = new Request(`http://localhost/sources/${slug}/analytics`, {
-      headers: headersList,
-    });
-    const auth = await providers.auth.getContext(req);
-    const ctx: RepoContext = { db: client.db, auth };
+  const headersList = await headers();
+  const req = new Request(`http://localhost/sources/${slug}/analytics`, {
+    headers: headersList,
+  });
+  const auth = await providers.auth.getContext(req);
+  const ctx: RepoContext = { db, auth };
 
-    const access = await describeSourceAccess(ctx, slug);
-    if (access.kind !== 'visible') notFound();
+  const access = await describeSourceAccess(ctx, slug);
+  if (access.kind !== 'visible') notFound();
 
-    const [status, cadence] = await Promise.all([
-      getSourceRecsPerStatus(ctx, access.sourceId),
-      getSourceProgressCadence(ctx, access.sourceId),
-    ]);
+  const [status, cadence] = await Promise.all([
+    getSourceRecsPerStatus(ctx, access.sourceId),
+    getSourceProgressCadence(ctx, access.sourceId),
+  ]);
 
-    return (
+  return (
       <div className="space-y-10">
         <header className="space-y-3">
           <div className="section-num">Source · Analytics</div>
@@ -73,7 +72,4 @@ export default async function SourceAnalyticsPage({ params }: PageProps) {
         </div>
       </div>
     );
-  } finally {
-    await client.sql.end({ timeout: 5 }).catch(() => {});
-  }
 }

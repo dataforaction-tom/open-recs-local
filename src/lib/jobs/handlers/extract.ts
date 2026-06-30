@@ -30,12 +30,12 @@ import {
   listTargetAudienceTypes,
   listThematicAreas,
   resolveOrCreateLocationScopes,
-  resolveOrCreatePriorityTimescales,
   resolveOrCreatePurposes,
-  resolveOrCreateRoleRelevances,
   resolveOrCreateSourceTypes,
+  resolveOrCreateRoleRelevances,
   resolveOrCreateTargetAudienceTypes,
   resolveOrCreateThematicAreas,
+  resolveOrCreatePriorityTimescales,
 } from '@/lib/repositories/taxonomy';
 import {
   replaceSourcePurposes,
@@ -45,11 +45,11 @@ import {
   replaceSourceThematicAreas,
 } from '@/lib/repositories/source-tags';
 import {
-  replaceRecommendationLocationScopes,
-  replaceRecommendationPurposes,
-  replaceRecommendationTargetAudienceTypes,
-  replaceRecommendationThematicAreas,
-} from '@/lib/repositories/recommendation-tags';
+  recommendationsLocationScopes,
+  recommendationsPurposes,
+  recommendationsTargetAudienceTypes,
+  recommendationsThematicAreas,
+} from '@/lib/db/schema';
 import type { RepoContext } from '@/lib/repositories/types';
 
 const MAX_PASS1_MARKDOWN = 10_000;
@@ -165,7 +165,7 @@ export async function extractHandler(
       priority_timescale: priorityTimescaleRows.map((r) => r.slug),
     };
 
-    // ----- Pass 1 + Pass 2: Run in parallel ------------------------------------
+    // ----- Pass 1 + Pass 2: Run in parallel --------------------------------
     // Both LLM calls are independent, so run concurrently for ~2x speedup.
     // If either fails, we propagate the error (both must succeed for valid output).
     const pass1Input = truncate(canonicalMarkdown, MAX_PASS1_MARKDOWN);
@@ -194,7 +194,7 @@ export async function extractHandler(
     const metadata: SourceMetadataOutput = pass1Result.value;
     const recs: RecommendationInput[] = pass2Result.value.recommendations;
 
-    // ----- Source metadata (from Pass 1) ------------------------------------
+    // ----- Source metadata (from Pass 1) — all 5 axes in parallel ---------
     await ctx.db
       .update(sources)
       .set({
@@ -206,34 +206,30 @@ export async function extractHandler(
       })
       .where(eq(sources.id, sourceId));
 
-    const themeIdsForSource = await resolveOrCreateThematicAreas(
-      repoCtx,
-      metadata.thematic_area_slugs,
-    );
-    await replaceSourceThematicAreas(repoCtx, sourceId, themeIdsForSource);
-    const sourceTypeIds = await resolveOrCreateSourceTypes(repoCtx, metadata.source_type_slugs);
-    await replaceSourceSourceTypes(repoCtx, sourceId, sourceTypeIds);
-    const sourcePurposeIds = await resolveOrCreatePurposes(repoCtx, metadata.purpose_slugs);
-    await replaceSourcePurposes(repoCtx, sourceId, sourcePurposeIds);
-    const roleIds = await resolveOrCreateRoleRelevances(repoCtx, metadata.role_relevance_slugs);
-    await replaceSourceRoleRelevances(repoCtx, sourceId, roleIds);
-    const audienceIdsForSource = await resolveOrCreateTargetAudienceTypes(
-      repoCtx,
-      metadata.target_audience_type_slugs,
-    );
-    await replaceSourceTargetAudienceTypes(repoCtx, sourceId, audienceIdsForSource);
+    // Each axis is independent: resolve-or-create slugs, then replace M2M.
+    // Running all 5 in parallel cuts 5 sequential round-trips to 1.
+    await Promise.all([
+      resolveOrCreateThematicAreas(repoCtx, metadata.thematic_area_slugs).then((ids) =>
+        replaceSourceThematicAreas(repoCtx, sourceId, ids),
+      ),
+      resolveOrCreateSourceTypes(repoCtx, metadata.source_type_slugs).then((ids) =>
+        replaceSourceSourceTypes(repoCtx, sourceId, ids),
+      ),
+      resolveOrCreatePurposes(repoCtx, metadata.purpose_slugs).then((ids) =>
+        replaceSourcePurposes(repoCtx, sourceId, ids),
+      ),
+      resolveOrCreateRoleRelevances(repoCtx, metadata.role_relevance_slugs).then((ids) =>
+        replaceSourceRoleRelevances(repoCtx, sourceId, ids),
+      ),
+      resolveOrCreateTargetAudienceTypes(repoCtx, metadata.target_audience_type_slugs).then((ids) =>
+        replaceSourceTargetAudienceTypes(repoCtx, sourceId, ids),
+      ),
+    ]);
 
-    // ----- Recommendations (from Pass 2 results) ----------------------------
-    await ctx.db.transaction(async (tx) => {
-      // Idempotency: delete existing recs for this source. Cascades clear
-      // recommendation_statuses + every rec-side M2M row automatically.
-      await tx.delete(recommendations).where(eq(recommendations.sourceId, sourceId));
-    });
-
-    // Batch resolve all taxonomy axes upfront (N+1 -> 1 DB call per axis).
-    // Results are positional: index i corresponds to recs[i], so recs that
-    // share a title never collide.
-    const [themeIdsPerRec, purposeIdsPerRec, audienceIdsPerRec, locationIdsPerRec] =
+    // ----- Recommendations (from Pass 2) ------------------------------------
+    // Batch-resolve all 5 taxonomy axes upfront (N+1 -> 1 DB call per axis).
+    // Priority timescale is single-valued per rec but still batched across recs.
+    const [themeIdsPerRec, purposeIdsPerRec, audienceIdsPerRec, locationIdsPerRec, priorityIdsPerRec] =
       await Promise.all([
         batchResolveTaxonomy(
           repoCtx,
@@ -255,54 +251,110 @@ export async function extractHandler(
           recs.map((r) => r.location_scope_slugs),
           resolveOrCreateLocationScopes,
         ),
+        // Priority timescale: single slug per rec, but we batch all unique
+        // slugs across recs into one resolveOrCreatePriorityTimescales call.
+        recs.length > 0
+          ? (async () => {
+              const uniqueSlugs = Array.from(
+                new Set(
+                  recs
+                    .map((r) => r.priority_timescale_slug)
+                    .filter((s): s is string => s !== null && s !== undefined),
+                ),
+              );
+              if (uniqueSlugs.length === 0) return [];
+              const ids = await resolveOrCreatePriorityTimescales(repoCtx, uniqueSlugs);
+              const slugToId = new Map(uniqueSlugs.map((s, i) => [s, ids[i] ?? null]));
+              return recs.map((r) => {
+                const slug = r.priority_timescale_slug;
+                return slug ? (slugToId.get(slug) ?? null) : null;
+              });
+            })()
+          : Promise.resolve([] as (string | null)[]),
       ]);
 
-    for (let i = 0; i < recs.length; i += 1) {
-      const rec = recs[i]!;
-      const slugBase = rec.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 80);
-      const slug = `${slugBase || 'rec'}-${sourceId.slice(0, 8)}-${i}`;
+    // Single transaction: delete old recs → bulk insert new recs → bulk insert
+    // statuses → bulk insert all M2M rows. If any step fails the transaction
+    // rolls back and no partial state remains.
+    await ctx.db.transaction(async (tx) => {
+      // Idempotency: delete existing recs for this source. Cascades clear
+      // recommendation_statuses + every rec-side M2M row automatically.
+      await tx.delete(recommendations).where(eq(recommendations.sourceId, sourceId));
 
-      const priorityIds = rec.priority_timescale_slug
-        ? await resolveOrCreatePriorityTimescales(repoCtx, [rec.priority_timescale_slug])
-        : [];
-      const priorityTimescaleId = priorityIds[0] ?? null;
+      if (recs.length === 0) return;
 
-      const [insertedRec] = await ctx.db
+      // Bulk insert all recommendations, returning IDs for M2M linking.
+      const insertedRecs = await tx
         .insert(recommendations)
-        .values({
-          sourceId,
-          slug,
-          title: rec.title,
-          body: rec.body,
-          pageAnchor: rec.page_start ?? null,
-          targetOrganization: rec.target_organization ?? null,
-          priorityTimescaleId,
-          notes: rec.notes ?? null,
-          confidence: rec.confidence,
-        })
+        .values(
+          recs.map((rec, i) => {
+            const slugBase = rec.title
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-+|-+$/g, '')
+              .slice(0, 80);
+            const slug = `${slugBase || 'rec'}-${sourceId.slice(0, 8)}-${i}`;
+            return {
+              sourceId,
+              slug,
+              title: rec.title,
+              body: rec.body,
+              pageAnchor: rec.page_start ?? null,
+              targetOrganization: rec.target_organization ?? null,
+              priorityTimescaleId: priorityIdsPerRec[i] ?? null,
+              notes: rec.notes ?? null,
+              confidence: rec.confidence,
+            };
+          }),
+        )
         .returning({ id: recommendations.id });
-      if (!insertedRec) throw new Error('source.extract: recommendation insert returned no row');
 
-      await ctx.db.insert(recommendationStatuses).values({
-        recommendationId: insertedRec.id,
-        status: 'open',
-        note: 'initial',
-      });
+      if (insertedRecs.length !== recs.length) {
+        throw new Error(
+          `source.extract: inserted ${insertedRecs.length} recs, expected ${recs.length}`,
+        );
+      }
 
-      // Use pre-resolved taxonomy IDs from batch resolution (positional by rec).
-      const themeIds = themeIdsPerRec[i] ?? [];
-      await replaceRecommendationThematicAreas(repoCtx, insertedRec.id, themeIds);
-      const purposeIds = purposeIdsPerRec[i] ?? [];
-      await replaceRecommendationPurposes(repoCtx, insertedRec.id, purposeIds);
-      const audienceIds = audienceIdsPerRec[i] ?? [];
-      await replaceRecommendationTargetAudienceTypes(repoCtx, insertedRec.id, audienceIds);
-      const locationIds = locationIdsPerRec[i] ?? [];
-      await replaceRecommendationLocationScopes(repoCtx, insertedRec.id, locationIds);
-    }
+      // Bulk insert initial 'open' status for every rec.
+      await tx.insert(recommendationStatuses).values(
+        insertedRecs.map((r) => ({
+          recommendationId: r.id,
+          status: 'open' as const,
+          note: 'initial',
+        })),
+      );
+
+      // Bulk insert M2M rows per axis. Since CASCADE on delete cleared all
+      // existing M2M rows, we just insert fresh — no diff needed.
+      const themeRows: Array<{ recommendationId: string; thematicAreaId: string }> = [];
+      const purposeRows: Array<{ recommendationId: string; purposeId: string }> = [];
+      const audienceRows: Array<{ recommendationId: string; targetAudienceTypeId: string }> = [];
+      const locationRows: Array<{ recommendationId: string; locationScopeId: string }> = [];
+
+      for (let i = 0; i < recs.length; i += 1) {
+        const recId = insertedRecs[i]!.id;
+        for (const id of themeIdsPerRec[i] ?? []) {
+          themeRows.push({ recommendationId: recId, thematicAreaId: id });
+        }
+        for (const id of purposeIdsPerRec[i] ?? []) {
+          purposeRows.push({ recommendationId: recId, purposeId: id });
+        }
+        for (const id of audienceIdsPerRec[i] ?? []) {
+          audienceRows.push({ recommendationId: recId, targetAudienceTypeId: id });
+        }
+        for (const id of locationIdsPerRec[i] ?? []) {
+          locationRows.push({ recommendationId: recId, locationScopeId: id });
+        }
+      }
+
+      // Insert all M2M rows in parallel (one INSERT per axis).
+      await Promise.all([
+        themeRows.length > 0 ? tx.insert(recommendationsThematicAreas).values(themeRows) : Promise.resolve(),
+        purposeRows.length > 0 ? tx.insert(recommendationsPurposes).values(purposeRows) : Promise.resolve(),
+        audienceRows.length > 0 ? tx.insert(recommendationsTargetAudienceTypes).values(audienceRows) : Promise.resolve(),
+        locationRows.length > 0 ? tx.insert(recommendationsLocationScopes).values(locationRows) : Promise.resolve(),
+      ]);
+    });
 
     // Final phase update — source advances to `embedding` (the next pipeline
     // stage). The actual `source.embed` enqueue lives in the queue wiring.

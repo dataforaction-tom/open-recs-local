@@ -26,7 +26,7 @@ const NAV_LINKS = [
   { href: '/analytics', label: 'Analytics' },
 ] as const;
 
-export function Navigation() {
+export function Navigation({ isAdmin = false }: { isAdmin?: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -71,7 +71,7 @@ export function Navigation() {
                 </li>
               );
             })}
-            <FeatureGate feature="admin">
+            {isAdmin && (
               <li>
                 <Link
                   href="/admin"
@@ -86,7 +86,7 @@ export function Navigation() {
                   Admin
                 </Link>
               </li>
-            </FeatureGate>
+            )}
           </ul>
         </nav>
       </Container>

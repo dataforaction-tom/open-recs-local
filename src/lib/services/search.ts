@@ -17,6 +17,7 @@ export type SearchRecsInput = {
   q: string;
   filters?: SearchFilters;
   limit?: number;
+  offset?: number;
   mode: SearchMode;
 };
 
@@ -29,10 +30,15 @@ export async function searchRecommendations(
   input: SearchRecsInput,
   deps: SearchRecsDeps = {},
 ): Promise<RrfRow[]> {
-  const { ctx, q, filters, limit, mode } = input;
+  const { ctx, q, filters, limit, offset, mode } = input;
 
   if (mode === 'keyword') {
-    return runRecommendationsKeyword(ctx, { q, ...(limit !== undefined ? { limit } : {}), ...(filters ? { filters } : {}) });
+    return runRecommendationsKeyword(ctx, {
+      q,
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+      ...(filters ? { filters } : {}),
+    });
   }
 
   // Design doc :124 — "queries degrade gracefully to keyword-only" when the
@@ -41,7 +47,12 @@ export async function searchRecommendations(
     console.warn(
       'searchRecommendations: hybrid mode requested without embedding provider; degrading to keyword-only',
     );
-    return runRecommendationsKeyword(ctx, { q, ...(limit !== undefined ? { limit } : {}), ...(filters ? { filters } : {}) });
+    return runRecommendationsKeyword(ctx, {
+      q,
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
+      ...(filters ? { filters } : {}),
+    });
   }
 
   const embedding = deps.embedding;
@@ -59,6 +70,7 @@ export async function searchRecommendations(
     q,
     queryEmbedding,
     ...(limit !== undefined ? { limit } : {}),
+    ...(offset !== undefined ? { offset } : {}),
     ...(filters ? { filters } : {}),
   });
 }

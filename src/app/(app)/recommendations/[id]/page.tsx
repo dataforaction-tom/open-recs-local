@@ -7,7 +7,7 @@ import {
   findRecommendationById,
   findSimilarRecommendations,
 } from '@/lib/repositories/recommendation';
-import { getLatestStatus } from '@/lib/repositories/recommendation-status';
+import { getLatestStatus, listStatusHistory } from '@/lib/repositories/recommendation-status';
 import { listProgressUpdates } from '@/lib/repositories/progress-update';
 import { listEvidenceTypes, listProgressRatings } from '@/lib/repositories/taxonomy';
 import {
@@ -23,6 +23,7 @@ import { RecommendationDetailHeader } from '@/components/recommendations/recomme
 import { SimilarRecommendations } from '@/components/recommendations/similar-recommendations';
 import { ProgressUpdateForm } from '@/components/progress/progress-update-form';
 import { ProgressUpdatesList } from '@/components/progress/progress-updates-list';
+import { StatusTimeline } from '@/components/progress/status-timeline';
 import { StatusTransitionControl } from '@/components/progress/status-transition-control';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { postProgressUpdate, transitionStatus } from './actions';
@@ -48,6 +49,7 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
       similar,
       latestStatus,
       updates,
+      statusHistory,
       evidenceTypes,
       progressRatings,
       themes,
@@ -59,6 +61,7 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
       findSimilarRecommendations(ctx, id, 5),
       getLatestStatus(ctx, id),
       listProgressUpdates(ctx, id),
+      listStatusHistory(ctx, id),
       listEvidenceTypes(ctx),
       listProgressRatings(ctx),
       listRecommendationThematicAreas(ctx, id),
@@ -79,6 +82,10 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
           sourceSlug={rec.sourceSlug}
           sourceTitle={rec.sourceTitle}
           pageAnchor={rec.pageAnchor}
+          confidence={rec.confidence}
+          targetOrganization={rec.targetOrganization}
+          priorityTimescaleName={rec.priorityTimescaleName}
+          notes={rec.notes}
         />
 
         <Tabs defaultValue="overview">
@@ -126,6 +133,7 @@ export default async function RecommendationDetailPage({ params }: PageProps) {
               note={latestStatus?.note ?? undefined}
               action={transitionStatus}
             />
+            <StatusTimeline rows={statusHistory} />
             <ProgressUpdatesList rows={updates} />
             <ProgressUpdateForm
               recommendationId={id}

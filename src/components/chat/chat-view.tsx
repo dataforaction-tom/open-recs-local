@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { ChatInput } from './chat-input';
 import { MessageBubble, type ChatMessage } from './message-bubble';
+import { EmptyCorpusNotice } from '@/components/shared/empty-corpus-notice';
 
 const EXAMPLES = [
   'What do these reports say about board oversight of risk?',
@@ -34,7 +35,7 @@ function parseRetrievedHeader(header: string | null): Retrieved {
   }
 }
 
-export function ChatView() {
+export function ChatView({ hasSources }: { hasSources: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -120,33 +121,56 @@ export function ChatView() {
     [messages, nextId, streaming],
   );
 
+  const regenerate = useCallback(() => {
+    if (streaming) return;
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    if (!lastUser) return;
+    // Drop the trailing assistant answer and the user turn we're re-asking
+    // so ask() can re-append a fresh user + assistant pair without leaving
+    // duplicates behind.
+    setMessages((prev) => {
+      const trimmed = [...prev];
+      const last = trimmed[trimmed.length - 1];
+      if (last && last.role === 'assistant') trimmed.pop();
+      const next = trimmed[trimmed.length - 1];
+      if (next && next.role === 'user') trimmed.pop();
+      return trimmed;
+    });
+    void ask(lastUser.content);
+  }, [ask, messages, streaming]);
+
   const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const lastAssistantId = lastAssistant?.id;
   const retrieved = lastAssistant?.retrieved ?? [];
 
   return (
     <div className="grid grid-cols-1 gap-10 md:grid-cols-[1fr_18rem]">
       <div className="flex min-h-[24rem] flex-col gap-6">
         {messages.length === 0 ? (
-          <div className="space-y-4">
-            <p className="font-serif text-base italic text-muted-foreground">
-              Try one of these to start, or ask anything about the documents
-              already in the library.
-            </p>
-            <ul className="space-y-2">
-              {EXAMPLES.map((example) => (
-                <li key={example}>
-                  <button
-                    type="button"
-                    onClick={() => ask(example)}
-                    disabled={streaming}
-                    className="border border-rule bg-paper-2 px-3 py-2 text-left font-serif text-sm leading-relaxed text-foreground transition-colors hover:border-accent hover:bg-accent-soft/40 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {example}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
+          hasSources ? (
+            <div className="space-y-4">
+              <p className="font-serif text-base italic text-muted-foreground">
+                Try one of these to start, or ask anything about the documents
+                already in the library.
+              </p>
+              <ul className="space-y-2">
+                {EXAMPLES.map((example) => (
+                  <li key={example}>
+                    <button
+                      type="button"
+                      onClick={() => ask(example)}
+                      disabled={streaming}
+                      className="border border-rule bg-paper-2 px-3 py-2 text-left font-serif text-sm leading-relaxed text-foreground transition-colors hover:border-accent hover:bg-accent-soft/40 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {example}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <EmptyCorpusNotice />
+          )
         ) : (
           <ol className="space-y-6">
             {messages.map((m) => (
@@ -157,6 +181,17 @@ export function ChatView() {
                     Thinking…
                   </p>
                 )}
+                {m.role === 'assistant' &&
+                  m.id === lastAssistantId &&
+                  !streaming && (
+                    <button
+                      type="button"
+                      onClick={regenerate}
+                      className="ml-4 mt-2 text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-accent hover:underline"
+                    >
+                      Regenerate
+                    </button>
+                  )}
               </li>
             ))}
           </ol>

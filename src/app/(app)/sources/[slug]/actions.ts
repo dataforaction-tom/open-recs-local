@@ -130,6 +130,9 @@ export async function updateSource(input: unknown): Promise<OwnershipActionResul
   const data: EditSourceInputT = parsed.data;
   const { ctx, close } = await buildContext();
   try {
+    if (!ctx.auth.isSystem && !ctx.auth.roles.includes('admin') && !ctx.auth.roles.includes('editor')) {
+      return { ok: false, error: 'unauthorized' };
+    }
     await updateSourceMetadata(ctx, data.sourceId, {
       title: data.title,
       summary: data.summary ?? null,

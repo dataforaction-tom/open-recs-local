@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useState, useTransition } from 'react';
+import { type ReactNode, useEffect, useRef, useState, useTransition } from 'react';
 import {
   Select,
   SelectContent,
@@ -50,6 +50,16 @@ export function EditableSelectCell<V extends string>({
   }
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any pending error-dismiss timer on unmount so we never try to
+  // setState on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (errorTimer.current) clearTimeout(errorTimer.current);
+    };
+  }, []);
 
   const currentLabel =
     options.find((o) => o.value === optimistic)?.label ?? String(optimistic);
@@ -75,29 +85,49 @@ export function EditableSelectCell<V extends string>({
     const previous = optimistic;
     setOptimistic(next);
     setEditing(false);
+    setError(null);
+    if (errorTimer.current) {
+      clearTimeout(errorTimer.current);
+      errorTimer.current = null;
+    }
     startTransition(async () => {
       const result = await onSubmit(next);
-      if (!result.ok) setOptimistic(previous);
+      if (!result.ok) {
+        setOptimistic(previous);
+        setError('Save failed');
+        if (errorTimer.current) clearTimeout(errorTimer.current);
+        errorTimer.current = setTimeout(() => setError(null), 3000);
+      }
     });
   }
 
   return (
-    <Select
-      value={optimistic}
-      onValueChange={onChange}
-      defaultOpen
-      disabled={isPending}
-    >
-      <SelectTrigger size="sm" aria-label="Change status">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
-            {opt.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <div className="inline-flex flex-col gap-1">
+      <Select
+        value={optimistic}
+        onValueChange={onChange}
+        defaultOpen
+        disabled={isPending}
+      >
+        <SelectTrigger size="sm" aria-label="Change status">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((opt) => (
+            <SelectItem key={opt.value} value={opt.value}>
+              {opt.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {error ? (
+        <span
+          role="alert"
+          className="text-xs text-red-600 dark:text-red-400"
+        >
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }

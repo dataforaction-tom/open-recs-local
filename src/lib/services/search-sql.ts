@@ -25,12 +25,14 @@ export type RunRrfArgs = {
   q: string;
   queryEmbedding: number[];
   limit?: number;
+  offset?: number;
   filters?: SearchFilters;
 };
 
 export type RunKeywordArgs = {
   q: string;
   limit?: number;
+  offset?: number;
   filters?: SearchFilters;
 };
 
@@ -134,6 +136,7 @@ export async function runRecommendationsRrf(
   args: RunRrfArgs,
 ): Promise<RrfRow[]> {
   const limit = args.limit ?? DEFAULT_LIMIT;
+  const offset = args.offset ?? 0;
   const tsQuery = sql`websearch_to_tsquery('english', ${args.q})`;
   const auth = composeAuthFilter(ctx);
   const { predicates, themaJoin } = composeRecFilters(args.filters);
@@ -200,6 +203,7 @@ export async function runRecommendationsRrf(
     JOIN sources s ON s.id = r.source_id
     ORDER BY f.rrf_score DESC, r.created_at DESC
     LIMIT ${limit}
+    OFFSET ${offset}
   `);
 
   return rows.map(toRrfRow);
@@ -210,6 +214,7 @@ export async function runRecommendationsKeyword(
   args: RunKeywordArgs,
 ): Promise<RrfRow[]> {
   const limit = args.limit ?? DEFAULT_LIMIT;
+  const offset = args.offset ?? 0;
   const tsQuery = sql`websearch_to_tsquery('english', ${args.q})`;
   const auth = composeAuthFilter(ctx);
   const { predicates, themaJoin } = composeRecFilters(args.filters);
@@ -248,6 +253,7 @@ export async function runRecommendationsKeyword(
     JOIN sources s ON s.id = r.source_id
     ORDER BY kr.rank ASC, r.created_at DESC
     LIMIT ${limit}
+    OFFSET ${offset}
   `);
 
   return rows.map(toRrfRow);
@@ -271,21 +277,20 @@ export async function runSourcePagesRrf(
   const auth = composeAuthFilter(ctx);
   const vectorLit = arrayToVectorLiteral(args.queryEmbedding);
 
-  // source_pages has no generated tsv column — recommendations does. We
-  // compute to_tsvector inline; if chat-search latency suffers, add a
-  // generated tsv + GIN index in a follow-up migration.
+  // source_pages has a generated tsv column + GIN index — use it instead
+  // of computing to_tsvector inline on every search.
   const rows = await ctx.db.execute<RawSourcePageRow>(sql`
     WITH keyword_ranked AS (
       SELECT p.id,
         row_number() OVER (
           ORDER BY ts_rank_cd(
-            to_tsvector('english', coalesce(p.markdown, '')),
+            p.tsv,
             ${tsQuery}
           ) DESC, p.page_number
         ) AS rank
       FROM source_pages p
       JOIN sources s ON s.id = p.source_id
-      WHERE to_tsvector('english', coalesce(p.markdown, '')) @@ ${tsQuery}
+      WHERE p.tsv @@ ${tsQuery}
         AND ${auth}
       LIMIT ${PER_CTE_LIMIT}
     ),

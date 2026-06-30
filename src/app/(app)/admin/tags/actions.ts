@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { createDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { createProviders } from '@/lib/providers';
-import type { RepoContext } from '@/lib/repositories/types';
+import { AuthorizationError, type RepoContext } from '@/lib/repositories/types';
 import {
   TAXONOMY_AXES,
   deleteTag,
@@ -40,8 +40,12 @@ async function buildContext(): Promise<{ ctx: RepoContext; close: () => Promise<
   const req = new Request('http://localhost/admin/tags', { headers: headersList });
   const auth = await providers.auth.getContext(req);
   const client = createDb(env.DATABASE_URL);
+  const ctx: RepoContext = { db: client.db, auth };
+  if (!ctx.auth.isSystem && !ctx.auth.roles.includes('admin')) {
+    throw new AuthorizationError('admin access required');
+  }
   return {
-    ctx: { db: client.db, auth },
+    ctx,
     close: async () => {
       await client.sql.end({ timeout: 5 }).catch(() => {});
     },

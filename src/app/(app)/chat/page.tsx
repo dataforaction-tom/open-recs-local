@@ -1,8 +1,26 @@
+import { headers } from 'next/headers';
+import { getSharedDb } from '@/lib/db/client';
+import { loadEnv } from '@/lib/env';
+import { getProviders } from '@/lib/providers/config';
+import { listRecentSources } from '@/lib/repositories/jobs-list';
+import type { RepoContext } from '@/lib/repositories/types';
 import { ChatView } from '@/components/chat/chat-view';
 
 export const dynamic = 'force-dynamic';
 
-export default function ChatPage() {
+export default async function ChatPage() {
+  const env = loadEnv();
+  const { db } = await getSharedDb(env.DATABASE_URL);
+  const providers = await getProviders(db, env);
+
+  const headersList = await headers();
+  const req = new Request('http://localhost/chat', { headers: headersList });
+  const auth = await providers.auth.getContext(req);
+  const ctx: RepoContext = { db, auth };
+
+  const recentSources = await listRecentSources(ctx, { limit: 1 });
+  const hasSources = recentSources.length > 0;
+
   return (
     <div className="space-y-12">
       <header className="space-y-3">
@@ -15,7 +33,7 @@ export default function ChatPage() {
         </p>
       </header>
 
-      <ChatView />
+      <ChatView hasSources={hasSources} />
     </div>
   );
 }

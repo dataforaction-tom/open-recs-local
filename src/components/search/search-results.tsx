@@ -1,5 +1,8 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
-import type { RrfRow } from '@/lib/services/search-sql';
+import type { RrfRow, SourcePageHit } from '@/lib/services/search-sql';
 
 const SHORT_DATE = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit',
@@ -28,7 +31,69 @@ function RankChip({ label, rank }: { label: string; rank: number | null }) {
   );
 }
 
+type Tab = 'recommendations' | 'pages';
+
 export function SearchResults({
+  rows,
+  mode,
+  pages,
+}: {
+  rows: RrfRow[];
+  mode: 'hybrid' | 'keyword';
+  pages: SourcePageHit[];
+}) {
+  const [tab, setTab] = useState<Tab>('recommendations');
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 border-b border-rule pb-2">
+        <TabButton
+          active={tab === 'recommendations'}
+          onClick={() => setTab('recommendations')}
+          label={`Recommendations (${rows.length})`}
+        />
+        <TabButton
+          active={tab === 'pages'}
+          onClick={() => setTab('pages')}
+          label={`Pages (${pages.length})`}
+        />
+      </div>
+
+      {tab === 'recommendations' ? (
+        <RecommendationsList rows={rows} mode={mode} />
+      ) : (
+        <PagesList pages={pages} />
+      )}
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        active
+          ? 'border-b-2 border-accent px-2 pb-2 text-sm font-medium text-accent'
+          : 'border-b-2 border-transparent px-2 pb-2 text-sm font-medium text-muted-foreground hover:text-foreground'
+      }
+      aria-pressed={active}
+    >
+      {label}
+    </button>
+  );
+}
+
+function RecommendationsList({
   rows,
   mode,
 }: {
@@ -76,6 +141,42 @@ export function SearchResults({
               </span>
             )}
           </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PagesList({ pages }: { pages: SourcePageHit[] }) {
+  if (pages.length === 0) {
+    return (
+      <p className="font-serif text-sm italic text-muted-foreground">
+        No source pages matched. Source page search requires an embedding
+        provider (hybrid mode).
+      </p>
+    );
+  }
+  return (
+    <ul className="divide-y divide-rule border-y border-rule">
+      {pages.map((page) => (
+        <li key={page.id} className="space-y-2 py-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+            <Link
+              href={`/sources/${page.sourceSlug}`}
+              className="text-base font-medium underline-offset-4 hover:text-accent hover:underline"
+            >
+              {page.sourceSlug}
+            </Link>
+            <span className="font-mono text-[0.7rem] uppercase tracking-wide text-muted-foreground">
+              p.{page.pageNumber}
+            </span>
+          </div>
+          <p className="font-serif text-[0.95rem] leading-relaxed text-foreground">
+            {excerpt(page.markdown, 200)}
+          </p>
+          <span className="font-mono text-[0.7rem] uppercase tracking-wide text-accent">
+            rrf {page.rrfScore.toFixed(4)}
+          </span>
         </li>
       ))}
     </ul>

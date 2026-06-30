@@ -56,6 +56,7 @@ export type ProgressUpdateRow = {
   evidenceUrl: string | null;
   userProgressRating: { slug: string; name: string; weight: number } | null;
   authorUserId: string | null;
+  authorName: string | null;
 };
 
 /**
@@ -86,6 +87,7 @@ export async function listProgressUpdates(
     ratingName: string | null;
     ratingWeight: number | null;
     authorUserId: string | null;
+    authorName: string | null;
   }>(sql`
     SELECT
       pu.id::text                   AS "id",
@@ -97,12 +99,15 @@ export async function listProgressUpdates(
       pu.user_progress_rating       AS "ratingSlug",
       pr.name                       AS "ratingName",
       pr.weight                     AS "ratingWeight",
-      pu.author_user_id::text       AS "authorUserId"
+      pu.author_user_id::text       AS "authorUserId",
+      u.name                        AS "authorName"
     FROM progress_updates pu
     LEFT JOIN evidence_types et ON et.slug = pu.evidence_type
     LEFT JOIN progress_ratings pr ON pr.slug = pu.user_progress_rating
+    LEFT JOIN users u ON u.id = pu.author_user_id
     WHERE pu.recommendation_id = ${recommendationId}::uuid
     ORDER BY pu.created_at DESC
+    LIMIT 50
   `);
 
   return rows.map((row) => ({
@@ -119,5 +124,6 @@ export async function listProgressUpdates(
         ? { slug: row.ratingSlug, name: row.ratingName, weight: row.ratingWeight }
         : null,
     authorUserId: row.authorUserId,
+    authorName: row.authorName,
   }));
 }

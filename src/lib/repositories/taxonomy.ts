@@ -1,5 +1,7 @@
 import { asc, eq, inArray, sql as drizzleSql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 import {
   evidenceTypes,
   locationScopes,
@@ -362,6 +364,9 @@ export async function mergeTag(
   fromId: string,
   toId: string,
 ): Promise<void> {
+  if (!UUID_RE.test(fromId) || !UUID_RE.test(toId)) {
+    throw new Error('mergeTag: fromId and toId must be UUIDs');
+  }
   if (fromId === toId) return;
   if (axis === 'priority_timescales') {
     await ctx.db.execute(
@@ -377,13 +382,11 @@ export async function mergeTag(
       // those would become primary-key duplicates after the UPDATE.
       const parentColumn = table.startsWith('sources_') ? 'source_id' : 'recommendation_id';
       await tx.execute(
-        drizzleSql.raw(
-          `DELETE FROM "${table}" t1 WHERE t1."${column}" = '${fromId}' AND EXISTS (SELECT 1 FROM "${table}" t2 WHERE t2."${parentColumn}" = t1."${parentColumn}" AND t2."${column}" = '${toId}')`,
-        ),
+        drizzleSql`DELETE FROM ${drizzleSql.raw(`"${table}"`)} t1 WHERE t1.${drizzleSql.raw(`"${column}"`)} = ${fromId}::uuid AND EXISTS (SELECT 1 FROM ${drizzleSql.raw(`"${table}"`)} t2 WHERE t2.${drizzleSql.raw(`"${parentColumn}"`)} = t1.${drizzleSql.raw(`"${parentColumn}"`)} AND t2.${drizzleSql.raw(`"${column}"`)} = ${toId}::uuid)`,
       );
       // Rewrite remaining (parent, fromId) rows to (parent, toId).
       await tx.execute(
-        drizzleSql.raw(`UPDATE "${table}" SET "${column}" = '${toId}' WHERE "${column}" = '${fromId}'`),
+        drizzleSql`UPDATE ${drizzleSql.raw(`"${table}"`)} SET ${drizzleSql.raw(`"${column}"`)} = ${toId}::uuid WHERE ${drizzleSql.raw(`"${column}"`)} = ${fromId}::uuid`,
       );
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

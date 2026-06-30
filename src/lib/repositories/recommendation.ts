@@ -113,6 +113,10 @@ export type RecommendationDetail = {
   sourceTitle: string;
   pageAnchor: number | null;
   hasEmbedding: boolean;
+  confidence: 'high' | 'medium' | 'low' | null;
+  targetOrganization: string | null;
+  priorityTimescaleName: string | null;
+  notes: string | null;
 };
 
 export async function findRecommendationById(
@@ -130,6 +134,10 @@ export async function findRecommendationById(
     sourceTitle: string;
     pageAnchor: number | null;
     hasEmbedding: boolean;
+    confidence: 'high' | 'medium' | 'low' | null;
+    targetOrganization: string | null;
+    priorityTimescaleName: string | null;
+    notes: string | null;
   }>(sql`
     SELECT
       r.id::text       AS "id",
@@ -139,9 +147,14 @@ export async function findRecommendationById(
       s.slug           AS "sourceSlug",
       s.title          AS "sourceTitle",
       r.page_anchor    AS "pageAnchor",
-      (r.embedding IS NOT NULL) AS "hasEmbedding"
+      (r.embedding IS NOT NULL) AS "hasEmbedding",
+      r.confidence     AS "confidence",
+      r.target_organization AS "targetOrganization",
+      pt.name          AS "priorityTimescaleName",
+      r.notes          AS "notes"
     FROM recommendations r
     JOIN sources s ON s.id = r.source_id
+    LEFT JOIN priority_timescales pt ON pt.id = r.priority_timescale_id
     WHERE r.id = ${id}::uuid
       AND ${auth}
     LIMIT 1
@@ -153,6 +166,7 @@ export type SimilarRec = {
   id: string;
   title: string;
   sourceSlug: string;
+  sourceTitle: string;
   distance: number;
 };
 
@@ -173,6 +187,7 @@ export async function findSimilarRecommendations(
     id: string;
     title: string;
     sourceSlug: string;
+    sourceTitle: string;
     distance: number | string;
   }>(sql`
     WITH self AS (
@@ -182,6 +197,7 @@ export async function findSimilarRecommendations(
       r.id::text     AS "id",
       r.title        AS "title",
       s.slug         AS "sourceSlug",
+      s.title        AS "sourceTitle",
       (r.embedding <=> (SELECT embedding FROM self)) AS "distance"
     FROM recommendations r
     JOIN sources s ON s.id = r.source_id
@@ -196,6 +212,7 @@ export async function findSimilarRecommendations(
     id: row.id,
     title: row.title,
     sourceSlug: row.sourceSlug,
+    sourceTitle: row.sourceTitle,
     distance: Number(row.distance),
   }));
 }
@@ -222,9 +239,10 @@ export type ListRecentFilters = {
  */
 export async function listRecentRecommendations(
   ctx: RepoContext,
-  args: { limit?: number; filters?: ListRecentFilters } = {},
+  args: { limit?: number; offset?: number; filters?: ListRecentFilters } = {},
 ): Promise<RecommendationListRow[]> {
   const limit = args.limit ?? 50;
+  const offset = args.offset ?? 0;
   const auth = composeAuthFilter(ctx);
 
   const predicates: ReturnType<typeof sql>[] = [];
@@ -265,6 +283,7 @@ export async function listRecentRecommendations(
       AND ${predicateSql}
     ORDER BY r.created_at DESC
     LIMIT ${limit}
+    OFFSET ${offset}
   `);
 
   return rows.map((row) => ({

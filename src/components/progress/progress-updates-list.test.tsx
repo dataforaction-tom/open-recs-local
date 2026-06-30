@@ -12,6 +12,7 @@ const SAMPLE: ProgressUpdateRow[] = [
     evidenceUrl: 'https://example.com/q3.pdf',
     userProgressRating: { slug: 'some-progress', name: 'Some progress', weight: 25 },
     authorUserId: null,
+    authorName: null,
   },
   {
     id: 'b',
@@ -21,6 +22,7 @@ const SAMPLE: ProgressUpdateRow[] = [
     evidenceUrl: null,
     userProgressRating: null,
     authorUserId: null,
+    authorName: null,
   },
 ];
 
