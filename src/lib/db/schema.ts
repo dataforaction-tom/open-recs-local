@@ -170,11 +170,15 @@ export const sourcePages = pgTable(
     imageRefs: jsonb('image_refs').$type<string[]>().default([]).notNull(),
     embedding: vector('embedding', { dimensions: EMBEDDING_DIM }),
     embeddingModel: text('embedding_model'),
+    tsv: tsvector('tsv').generatedAlwaysAs(
+      sql`to_tsvector('english', coalesce(markdown, ''))`,
+    ),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
     sourcePageIdx: index('source_pages_source_page_idx').on(t.sourceId, t.pageNumber),
     embedIdx: index('source_pages_embedding_idx').using('hnsw', t.embedding.op('vector_cosine_ops')),
+    tsvIdx: index('source_pages_tsv_idx').using('gin', t.tsv),
   }),
 );
 

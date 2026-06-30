@@ -1,6 +1,6 @@
 import { streamText } from 'ai';
 import { z } from 'zod';
-import { createDb, type DbClient } from '@/lib/db/client';
+import { getSharedDb, type DbClient } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { getProviders } from '@/lib/providers/config';
 import { getChatModel } from '@/lib/providers/llm/chat-model';
@@ -62,7 +62,7 @@ export async function POST(req: Request): Promise<Response> {
 
   let client: DbClient | undefined;
   try {
-    client = createDb(env.DATABASE_URL);
+    client = await getSharedDb(env.DATABASE_URL);
     // DB-aware provider resolution so saved provider settings take effect on the
     // web read path too (cached in-process by getProviders).
     const providers = await getProviders(client.db, env);
@@ -74,9 +74,8 @@ export async function POST(req: Request): Promise<Response> {
       { embedding: providers.embedding },
     );
 
-    // All DB work is done — the streaming phase below is LLM-only. Closing
-    // here prevents the per-request postgres pool from leaking under traffic.
-    await client.sql.end({ timeout: 5 }).catch(() => {});
+    // All DB work is done — the streaming phase below is LLM-only. The
+    // shared pool stays open; it's managed at the process level.
     client = undefined;
 
     const passages = retrieved
@@ -103,7 +102,6 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonError(500, 'chat-search failed', message);
-  } finally {
-    await client?.sql.end({ timeout: 5 }).catch(() => {});
   }
+  // No finally — the shared pool is not closed per-request.
 }

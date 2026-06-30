@@ -1,0 +1,2 @@
+ALTER TABLE "source_pages" ADD COLUMN "tsv" "tsvector" GENERATED ALWAYS AS (to_tsvector('english', coalesce(markdown, ''))) STORED;--> statement-breakpoint
+CREATE INDEX "source_pages_tsv_idx" ON "source_pages" USING gin ("tsv");

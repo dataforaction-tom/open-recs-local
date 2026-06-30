@@ -271,21 +271,20 @@ export async function runSourcePagesRrf(
   const auth = composeAuthFilter(ctx);
   const vectorLit = arrayToVectorLiteral(args.queryEmbedding);
 
-  // source_pages has no generated tsv column — recommendations does. We
-  // compute to_tsvector inline; if chat-search latency suffers, add a
-  // generated tsv + GIN index in a follow-up migration.
+  // source_pages has a generated tsv column + GIN index — use it instead
+  // of computing to_tsvector inline on every search.
   const rows = await ctx.db.execute<RawSourcePageRow>(sql`
     WITH keyword_ranked AS (
       SELECT p.id,
         row_number() OVER (
           ORDER BY ts_rank_cd(
-            to_tsvector('english', coalesce(p.markdown, '')),
+            p.tsv,
             ${tsQuery}
           ) DESC, p.page_number
         ) AS rank
       FROM source_pages p
       JOIN sources s ON s.id = p.source_id
-      WHERE to_tsvector('english', coalesce(p.markdown, '')) @@ ${tsQuery}
+      WHERE p.tsv @@ ${tsQuery}
         AND ${auth}
       LIMIT ${PER_CTE_LIMIT}
     ),

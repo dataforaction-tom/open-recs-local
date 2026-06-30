@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { createDb, type DbClient } from '@/lib/db/client';
+import { getSharedDb } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { createQueue, type Queue } from '@/lib/jobs/queue';
-import { createProviders } from '@/lib/providers';
+import { getProviders } from '@/lib/providers/config';
 import { uploadSource } from '@/lib/services/upload-source';
 import type { RepoContext } from '@/lib/repositories/types';
 
@@ -99,42 +99,42 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const env = loadEnv();
-  const providers = createProviders(env);
 
-  // Per-request db; the pool lifetime is tied to this handler. We end it
-  // in `finally` to avoid leaking sockets across request boundaries.
-  let client: DbClient | undefined;
   try {
-    client = createDb(env.DATABASE_URL);
-    const queue = await getQueue(env.DATABASE_URL);
-    const auth = await providers.auth.getContext(req);
-    const ctx: RepoContext = { db: client.db, auth };
+  // Shared pool — reused across requests, no per-handler open/close churn.
+  const { db } = await getSharedDb(env.DATABASE_URL);
+  const queue = await getQueue(env.DATABASE_URL);
+  // DB-aware provider resolution so saved provider settings take effect on
+  // the upload path too (cached in-process by getProviders, invalidated on
+  // NOTIFY from the worker).
+  const providers = await getProviders(db, env);
+  const auth = await providers.auth.getContext(req);
+  const ctx: RepoContext = { db, auth };
 
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const serviceInput: Parameters<typeof uploadSource>[1] = {
-      filename: file.name,
-      contentType,
-      bytes,
-    };
-    if (title !== undefined) serviceInput.title = title;
-    if (is_private !== undefined) serviceInput.isPrivate = is_private;
-    // Stamp the owner so hosted-mode listing/visibility filters can find
-    // the source from this user. Local mode uses the `system` context
-    // (isSystem=true, non-UUID id) and stays public-anonymous.
-    if (!auth.isSystem && auth.user?.id) {
-      serviceInput.ownerUserId = auth.user.id;
-    }
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const serviceInput: Parameters<typeof uploadSource>[1] = {
+    filename: file.name,
+    contentType,
+    bytes,
+  };
+  if (title !== undefined) serviceInput.title = title;
+  if (is_private !== undefined) serviceInput.isPrivate = is_private;
+  // Stamp the owner so hosted-mode listing/visibility filters can find
+  // the source from this user. Local mode uses the `system` context
+  // (isSystem=true, non-UUID id) and stays public-anonymous.
+  if (!auth.isSystem && auth.user?.id) {
+    serviceInput.ownerUserId = auth.user.id;
+  }
 
-    const result = await uploadSource(ctx, serviceInput, { storage: providers.storage, queue });
+  const result = await uploadSource(ctx, serviceInput, { storage: providers.storage, queue });
 
-    return new Response(
-      JSON.stringify({ sourceId: result.sourceId, jobId: result.jobId, status: 'queued' }),
-      { status: 201, headers: { 'content-type': 'application/json' } },
-    );
+  return new Response(
+    JSON.stringify({ sourceId: result.sourceId, jobId: result.jobId, status: 'queued' }),
+    { status: 201, headers: { 'content-type': 'application/json' } },
+  );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonError(500, 'upload failed', message);
-  } finally {
-    await client?.sql.end({ timeout: 5 }).catch(() => {});
   }
+  // No finally block — the shared pool is not closed per-request.
 }
