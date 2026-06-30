@@ -239,9 +239,10 @@ export type ListRecentFilters = {
  */
 export async function listRecentRecommendations(
   ctx: RepoContext,
-  args: { limit?: number; filters?: ListRecentFilters } = {},
+  args: { limit?: number; offset?: number; filters?: ListRecentFilters } = {},
 ): Promise<RecommendationListRow[]> {
   const limit = args.limit ?? 50;
+  const offset = args.offset ?? 0;
   const auth = composeAuthFilter(ctx);
 
   const predicates: ReturnType<typeof sql>[] = [];
@@ -282,6 +283,7 @@ export async function listRecentRecommendations(
       AND ${predicateSql}
     ORDER BY r.created_at DESC
     LIMIT ${limit}
+    OFFSET ${offset}
   `);
 
   return rows.map((row) => ({
