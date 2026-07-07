@@ -66,6 +66,8 @@ function makeStubModel(text: string): LanguageModel {
 }
 
 vi.mock('@/lib/providers/llm/chat-model', () => ({
+  getChatModelFromConfig: vi.fn(),
+  // Keep the legacy export mocked too so any other importer doesn't blow up.
   getChatModel: vi.fn(),
 }));
 
@@ -104,8 +106,8 @@ beforeAll(async () => {
     },
   ]);
 
-  const { getChatModel } = await import('@/lib/providers/llm/chat-model');
-  vi.mocked(getChatModel).mockImplementation(() => makeStubModel(stubText));
+  const { getChatModelFromConfig } = await import('@/lib/providers/llm/chat-model');
+  vi.mocked(getChatModelFromConfig).mockImplementation(() => makeStubModel(stubText));
 }, 120_000);
 
 afterAll(async () => {
@@ -159,8 +161,8 @@ describe('POST /api/chat-search', () => {
   });
 
   it('returns 503 when no chat model is configured', async () => {
-    const { getChatModel } = await import('@/lib/providers/llm/chat-model');
-    vi.mocked(getChatModel).mockImplementationOnce(() => null);
+    const { getChatModelFromConfig } = await import('@/lib/providers/llm/chat-model');
+    vi.mocked(getChatModelFromConfig).mockImplementationOnce(() => null);
     const res = await postChat({ q: 'auditor question' });
     expect(res.status).toBe(503);
   });

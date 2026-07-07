@@ -75,7 +75,11 @@ export function mergeProviderConfig(env: Env, rows: DecryptedProviderRow[]): Env
 }
 
 const CACHE_TTL_MS = 30_000;
-let cache: { providers: Providers; loadedAt: number } | null = null;
+// Cache both the merged config and the built Providers so a single request
+// that needs both (e.g. /api/chat-search: getChatModelFromConfig + getProviders)
+// doesn't issue two `listProviderSettings` queries. The cache is invalidated
+// by the NOTIFY listener (see listenForProviderSettingsChanges) and a TTL.
+let cache: { config: Env; providers: Providers; loadedAt: number } | null = null;
 
 /** Reset the in-process provider cache (tests; NOTIFY-driven invalidation). */
 export function clearProviderCache(): void {
@@ -99,9 +103,29 @@ export async function loadProviderConfig(db: Db, env: Env): Promise<Env> {
 }
 
 /**
+ * Return the merged config (DB-stored `provider_settings` rows overlaid on
+ * the raw env), cached in-process with a short TTL. Callers that need to
+ * resolve provider settings without building the full `Providers` bundle
+ * (e.g. the chat-search route, which only needs the chat model) should use
+ * this. The cache is shared with {@link getProviders} so a single request
+ * that calls both does not issue two DB queries.
+ */
+export async function getProviderConfig(db: Db, env: Env): Promise<Env> {
+  const now = Date.now();
+  if (cache && now - cache.loadedAt < CACHE_TTL_MS) {
+    return cache.config;
+  }
+  const merged = await loadProviderConfig(db, env);
+  const providers = createProviders(merged);
+  cache = { config: merged, providers, loadedAt: now };
+  return merged;
+}
+
+/**
  * Build the effective Providers from DB config merged over env, cached
  * in-process with a short TTL. The cache is cleared immediately by the NOTIFY
  * listener (see listenForProviderSettingsChanges); the TTL is the safety net.
+ * Shares its cache with {@link getProviderConfig}.
  */
 export async function getProviders(db: Db, env: Env): Promise<Providers> {
   const now = Date.now();
@@ -110,7 +134,7 @@ export async function getProviders(db: Db, env: Env): Promise<Providers> {
   }
   const merged = await loadProviderConfig(db, env);
   const providers = createProviders(merged);
-  cache = { providers, loadedAt: now };
+  cache = { config: merged, providers, loadedAt: now };
   return providers;
 }
 

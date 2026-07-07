@@ -14,14 +14,21 @@ import type { Env } from '../../env';
  * against a smaller streaming model (e.g. `qwen2.5:0.5b`) — useful in CI
  * where the chat path needs a real streaming endpoint but extract is mocked
  * by fixtures.
+ *
+ * Accepts a merged config object — typically the output of
+ * `loadProviderConfig(db, env)` in `src/lib/providers/config.ts`, which
+ * overlays DB-stored `provider_settings` rows on top of the raw env. That
+ * makes DB-driven chat model selection work on the web read path (the
+ * `/api/chat-search` route). A caller that only has the raw env can still
+ * pass it directly; the shape is identical.
  */
-export function getChatModel(env: Env): LanguageModel | null {
-  const provider = env.CHAT_PROVIDER ?? env.LLM_PROVIDER;
+export function getChatModelFromConfig(config: Env): LanguageModel | null {
+  const provider = config.CHAT_PROVIDER ?? config.LLM_PROVIDER;
   if (provider !== 'openai-compatible') return null;
 
-  const baseURL = env.CHAT_BASE_URL ?? env.LLM_BASE_URL;
-  const apiKey = env.CHAT_API_KEY ?? env.LLM_API_KEY;
-  const model = env.CHAT_MODEL ?? env.LLM_MODEL;
+  const baseURL = config.CHAT_BASE_URL ?? config.LLM_BASE_URL;
+  const apiKey = config.CHAT_API_KEY ?? config.LLM_API_KEY;
+  const model = config.CHAT_MODEL ?? config.LLM_MODEL;
   if (!baseURL || !model) return null;
 
   const client = createOpenAICompatible({
@@ -30,4 +37,14 @@ export function getChatModel(env: Env): LanguageModel | null {
     ...(apiKey ? { apiKey } : {}),
   });
   return client.chatModel(model);
+}
+
+/**
+ * Backwards-compatible wrapper for callers that only have the raw `Env`
+ * (no DB access). Delegates to {@link getChatModelFromConfig}. New callers
+ * should prefer `getChatModelFromConfig` with a merged config from
+ * `loadProviderConfig()` so DB-stored provider settings take effect.
+ */
+export function getChatModel(env: Env): LanguageModel | null {
+  return getChatModelFromConfig(env);
 }

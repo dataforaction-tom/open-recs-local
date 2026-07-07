@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { getSharedDb, type DbClient } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
 import { getClientIp, getDefaultLimiter, rateLimitResponse } from '@/lib/middleware/rate-limit';
-import { getProviders } from '@/lib/providers/config';
-import { getChatModel } from '@/lib/providers/llm/chat-model';
+import { getProviderConfig, getProviders } from '@/lib/providers/config';
+import { getChatModelFromConfig } from '@/lib/providers/llm/chat-model';
 import type { RepoContext } from '@/lib/repositories/types';
 import { searchSourcePages } from '@/lib/services/search';
 
@@ -63,16 +63,20 @@ export async function POST(req: Request): Promise<Response> {
   const { q, history = [] } = parsed.data;
 
   const env = loadEnv();
-  const model = getChatModel(env);
-  if (!model) {
-    return jsonError(503, 'no streaming chat model configured');
-  }
 
   let client: DbClient | undefined;
   try {
     client = await getSharedDb(env.DATABASE_URL);
     // DB-aware provider resolution so saved provider settings take effect on the
-    // web read path too (cached in-process by getProviders).
+    // web read path too (cached in-process by getProviderConfig/getProviders).
+    // getProviderConfig shares its cache with getProviders, so the two calls
+    // below issue a single `listProviderSettings` query within the TTL window.
+    const mergedConfig = await getProviderConfig(client.db, env);
+    const model = getChatModelFromConfig(mergedConfig);
+    if (!model) {
+      return jsonError(503, 'no streaming chat model configured');
+    }
+
     const providers = await getProviders(client.db, env);
     const auth = await providers.auth.getContext(req);
     const ctx: RepoContext = { db: client.db, auth };

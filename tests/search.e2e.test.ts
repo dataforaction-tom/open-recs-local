@@ -107,6 +107,7 @@ function makeStubChatModel(text: string): LanguageModel {
 
 vi.mock('@/lib/providers/llm/chat-model', () => ({
   getChatModel: vi.fn(),
+  getChatModelFromConfig: vi.fn(),
 }));
 
 describe('search surfaces e2e', () => {
@@ -169,13 +170,13 @@ describe('search surfaces e2e', () => {
       60_000,
     );
 
-    const { getChatModel } = await import('@/lib/providers/llm/chat-model');
+    const { getChatModelFromConfig } = await import('@/lib/providers/llm/chat-model');
     const seededSlug = await dbClient.db
       .select({ slug: sources.slug })
       .from(sources)
       .where(eq(sources.id, seededSourceId));
     const slug = seededSlug[0]?.slug ?? 'sample-report';
-    vi.mocked(getChatModel).mockImplementation(() =>
+    vi.mocked(getChatModelFromConfig).mockImplementation(() =>
       makeStubChatModel(
         `Auditors should rotate at least every seven years [[source:${slug}#page:2]].`,
       ),
