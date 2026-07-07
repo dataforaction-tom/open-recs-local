@@ -12,7 +12,8 @@ import {
   upsertProviderSetting,
 } from '@/lib/repositories/provider-settings';
 import { PROVIDER_KINDS, type ProviderKind } from '@/lib/db/schema';
-import { encryptSecret } from '@/lib/security/secrets';
+import { encryptSecret, decryptSecret } from '@/lib/security/secrets';
+import { assertEmbeddingDimension } from '@/lib/providers/embedding-dimension-guard';
 
 const SaveInput = z.object({
   kind: z.enum(PROVIDER_KINDS),
@@ -67,11 +68,32 @@ export async function saveProviderSettings(formData: FormData): Promise<void> {
     // submitted. A blank submission preserves the existing ciphertext by
     // reloading it first.
     let apiKeyEncrypted: string | null = null;
+    let plaintextKeyForTest = apiKeyTrimmed;
     if (apiKeyTrimmed) {
       apiKeyEncrypted = encryptSecret(env.PROVIDER_SECRET_KEY, apiKeyTrimmed);
     } else {
       const existing = (await listProviderSettings(ctx.db)).find((r) => r.kind === kind);
       apiKeyEncrypted = existing?.apiKeyEncrypted ?? null;
+      // The guard needs the plaintext key to probe the live endpoint. When the
+      // admin left the field blank, decrypt the stored key (if any) so the
+      // probe runs with the credentials that will actually be persisted.
+      if (existing?.apiKeyEncrypted) {
+        plaintextKeyForTest = decryptSecret(env.PROVIDER_SECRET_KEY, existing.apiKeyEncrypted);
+      }
+    }
+    // Dimension guard: for embedding configs, probe the live endpoint before
+    // persisting. A mismatched dimension would silently produce unsearchable
+    // rows (the pgvector column is fixed at EMBEDDING_DIM), so block the save
+    // with an actionable message instead of letting the admin discover the
+    // breakage at query time.
+    if (kind === 'embedding') {
+      await assertEmbeddingDimension({
+        kind,
+        provider: data.provider.trim(),
+        baseUrl: baseUrl ?? '',
+        model: model ?? '',
+        apiKey: plaintextKeyForTest,
+      });
     }
     await upsertProviderSetting(ctx.db, {
       kind,
