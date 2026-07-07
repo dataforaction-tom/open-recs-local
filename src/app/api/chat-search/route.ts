@@ -2,6 +2,7 @@ import { streamText } from 'ai';
 import { z } from 'zod';
 import { getSharedDb, type DbClient } from '@/lib/db/client';
 import { loadEnv } from '@/lib/env';
+import { getClientIp, getDefaultLimiter, rateLimitResponse } from '@/lib/middleware/rate-limit';
 import { getProviders } from '@/lib/providers/config';
 import { getChatModel } from '@/lib/providers/llm/chat-model';
 import type { RepoContext } from '@/lib/repositories/types';
@@ -37,6 +38,13 @@ function jsonError(status: number, error: string, detail?: unknown): Response {
 }
 
 export async function POST(req: Request): Promise<Response> {
+  // Rate limit first — refuse before any LLM call if the bucket is empty.
+  const limiter = getDefaultLimiter();
+  const ip = getClientIp(req);
+  if (!limiter.tryConsume(ip)) {
+    return rateLimitResponse(limiter.secondsUntilRefill(ip));
+  }
+
   const contentType = req.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().includes('application/json')) {
     return jsonError(415, 'expected application/json');
