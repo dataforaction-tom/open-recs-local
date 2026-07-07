@@ -61,9 +61,26 @@ brew install ollama
 ollama serve              # in one terminal
 ollama pull llama3.1:8b   # in another terminal
 ollama pull nomic-embed-text
+ollama pull qwen2.5:0.5b  # lightweight chat-search model
 ```
 
 Ollama listens on `http://localhost:11434`.
+
+#### Create the extract model
+
+The two-pass extraction pipeline sends long documents to the LLM, so create a
+derived model with a larger context window than the stock `llama3.1:8b`
+(default 4096 tokens). `num_ctx 12288` comfortably fits a typical inquiry
+report chapter in a single request:
+
+```bash
+ollama create llama3.1-extract -f - <<'EOF'
+FROM llama3.1:8b
+PARAMETER num_ctx 12288
+EOF
+```
+
+You'll reference this derived model as `LLM_MODEL=llama3.1-extract` below.
 
 ### 2. Docling in a container
 
@@ -82,7 +99,10 @@ Edit `.env`:
 ```bash
 LLM_PROVIDER=openai-compatible
 LLM_BASE_URL=http://host.docker.internal:11434/v1
-LLM_MODEL=llama3.1:8b
+LLM_MODEL=llama3.1-extract
+
+# Optional: lighter model for the streaming chat-search path.
+CHAT_MODEL=qwen2.5:0.5b
 
 EMBEDDING_PROVIDER=openai-compatible
 EMBEDDING_BASE_URL=http://host.docker.internal:11434/v1

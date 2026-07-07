@@ -99,6 +99,40 @@ signups are `viewer` by default — admins can promote at `/admin`.
 For a step-by-step walkthrough including Ollama / Docling setup on Mac mini
 and Linux, see [`docs/running-locally.md`](docs/running-locally.md).
 
+### Local LLM setup (Ollama)
+
+For local-mode pipeline extraction, create a derived Ollama model with a
+larger context window than the stock `llama3.1:8b`:
+
+```bash
+ollama pull llama3.1:8b
+ollama create llama3.1-extract -f - <<'EOF'
+FROM llama3.1:8b
+PARAMETER num_ctx 12288
+EOF
+```
+
+Then point the app at it in `.env`:
+
+```bash
+LLM_PROVIDER=openai-compatible
+LLM_BASE_URL=http://localhost:11434/v1
+LLM_MODEL=llama3.1-extract
+```
+
+For chat-search, any streaming model works — a lighter model keeps latency
+down on the Mac mini:
+
+```bash
+ollama pull qwen2.5:0.5b
+CHAT_MODEL=qwen2.5:0.5b
+```
+
+`CHAT_MODEL` overrides `LLM_MODEL` for the streaming chat path only; the
+extract pipeline keeps using `llama3.1-extract`. See
+[`docs/running-locally.md`](docs/running-locally.md) for the full setup
+walkthrough (Docker, Docling, env vars, hosted mode).
+
 ## Screenshots
 
 | Dashboard | Source viewer | Recommendations |
