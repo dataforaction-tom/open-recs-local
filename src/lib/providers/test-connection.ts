@@ -154,6 +154,7 @@ async function testEmbedding(
   if (provider === 'fake') {
     const emb = createFakeEmbedding();
     const [vec] = await emb.embed(['probe']);
+    if (!vec) return fail('embedding', 'fake embedding returned no vectors');
     return ok('embedding', vec.length);
   }
   if (provider !== 'openai-compatible') {
