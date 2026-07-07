@@ -1,7 +1,7 @@
 # Plan
 
-> Last updated: 2026-05-25
-> Status: Phase 10 — polish + 1.0 release (pipeline perf + UI enhancements underway)
+> Last updated: 2026-07-07
+> Status: Phase 11 — configurable providers PR2/PR3 + finish-line polish (1.0 release)
 
 ## Objective
 
@@ -17,13 +17,19 @@ Next.js 15 + TypeScript monolith with a worker sidecar. Postgres (pgvector + tsv
 
 ## Current phase
 
-**Phase 10 — Polish + 1.0 release.** Pipeline performance + UI enhancements per `docs/plans/2025-05-25-pipeline-ui-improvements-plan.md`. 
+**Phase 11 — Configurable Providers PR2/PR3 + finish-line polish → 1.0 release.**
+
+Phases 10a/10b/10c are complete. Phase 11 (configurable providers) PR1 is
+merged; PR2/PR3 remain. The finish-line plan is at
+`docs/plans/2026-07-07-finish-line-plan.md`.
 
 Current work:
-- **Phase 10a** ✓ complete: Pipeline perf — batch taxonomy ✓, parallel LLM ✓, batch embed ✓ (bulk `UPDATE ... FROM (VALUES)`)
-- **Phase 10b** (next): UI enhancements — source list, filters, tags, metadata
-- **Phase 10c**: tsvector column migration
-- **Phase 10d**: Playwright E2E + CI + 1.0 tag
+- **Phase 10a** ✅ complete: batch taxonomy, parallel LLM, batch embed
+- **Phase 10b** ✅ complete: UI enhancements (search, DnD, CSV, pagination, timelines, citations)
+- **Phase 10c** ✅ complete: tsvector generated columns + GIN indexes (sources, source_pages, recommendations)
+- **Phase 11 PR1** ✅ complete: provider_settings table, encryption, config flow, worker resolution, admin UI
+- **Phase 11 PR2/PR3** ⏳ next: test-connection endpoint, model discovery, dimension guard, chat model wiring
+- **Phase 10d** ⏳: fix flaky worker smoke test, verify Playwright E2E in CI, 1.0 tag
 
 ## Tasks (phase-level)
 
@@ -38,7 +44,11 @@ Current work:
 - [x] Phase 7 — Progress updates (form, list, status transitions, EditableSelectCell)
 - [x] Phase 8 — Hosted-mode (Better-auth, ownership, admin)
 - [x] Phase 9 — Analytics (Chart.js, cache, scheduled refresh)
-- [~] **CURRENT** Phase 10 — Pipeline perf + UI enhancements (see `docs/plans/2025-05-25-pipeline-ui-improvements-plan.md`)
+- [x] Phase 10a — Pipeline perf (batch taxonomy, parallel LLM, batch embed)
+- [x] Phase 10b — UI enhancements (search, DnD, CSV, pagination, timelines, citations)
+- [x] Phase 10c — tsvector generated columns + GIN indexes
+- [x] Phase 11 PR1 — Configurable providers foundation (table, encryption, config flow, admin UI)
+- [~] **CURRENT** Phase 11 PR2/PR3 + Phase 10d — finish-line plan at `docs/plans/2026-07-07-finish-line-plan.md`
 
 Before each phase after 0/1, re-enter `superpowers:writing-plans` with the design + phase exit criteria to decompose into TDD-sized tasks.
 
