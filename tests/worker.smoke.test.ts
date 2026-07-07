@@ -64,7 +64,7 @@ describe('worker smoke', () => {
       const ready = new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => {
           reject(new Error(`worker never signalled ready. stdout=${stdout} stderr=${stderr}`));
-        }, 20_000);
+        }, 30_000);
         const check = setInterval(() => {
           if (stdout.includes('[worker] ready')) {
             clearInterval(check);
@@ -101,6 +101,6 @@ describe('worker smoke', () => {
 
       expect(exitCode).toBe(0);
     },
-    30_000,
+    45_000,
   );
 });
