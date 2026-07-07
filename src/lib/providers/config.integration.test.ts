@@ -5,7 +5,14 @@ import { createDb, type DbClient } from '../db/client';
 import { loadEnv, type Env } from '../env';
 import { encryptSecret } from '../security/secrets';
 import { upsertProviderSetting } from '../repositories/provider-settings';
-import { clearProviderCache, getProviders, loadProviderConfig } from './config';
+import {
+  __cacheProbeForTests,
+  clearProviderCache,
+  getProviders,
+  loadProviderConfig,
+  resetWebProviderSettingsListenerForTests,
+  startWebProviderSettingsListener,
+} from './config';
 
 let pg: StartedPg;
 let client: DbClient;
@@ -21,6 +28,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
+  await resetWebProviderSettingsListenerForTests();
   await client?.sql.end();
   await pg?.container.stop();
 });
@@ -72,5 +80,50 @@ describe('getProviders', () => {
     clearProviderCache();
     const third = await getProviders(client.db, env());
     expect(third).not.toBe(first);
+  });
+});
+
+describe('startWebProviderSettingsListener', () => {
+  beforeEach(() => {
+    resetWebProviderSettingsListenerForTests();
+  });
+
+  it('clears the web-side cache on a NOTIFY event', async () => {
+    const handle = await startWebProviderSettingsListener(client.sql);
+
+    try {
+      // Populate the cache so we can detect the invalidation.
+      await getProviders(client.db, env());
+      expect(__cacheProbeForTests()).toBe(true);
+
+      // upsertProviderSetting fires pg_notify on the provider-settings channel.
+      await upsertProviderSetting(client.db, {
+        kind: 'llm',
+        provider: 'openai-compatible',
+        baseUrl: 'http://listener-test/v1',
+        model: 'listener-model',
+        apiKeyEncrypted: null,
+        extra: {},
+        updatedBy: 'system',
+      });
+
+      // postgres-js delivers LISTEN notifications asynchronously; poll until
+      // the cache has been cleared or give up after ~2s.
+      const deadline = Date.now() + 2_000;
+      while (__cacheProbeForTests() && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(__cacheProbeForTests()).toBe(false);
+    } finally {
+      await handle.unlisten();
+    }
+  });
+
+  it('does not double-listen when called twice (dev hot-reload guard)', async () => {
+    const a = await startWebProviderSettingsListener(client.sql);
+    const b = await startWebProviderSettingsListener(client.sql);
+    // Second call is a no-op: returns the same singleton handle.
+    expect(b).toBe(a);
+    await a.unlisten();
   });
 });

@@ -152,3 +152,72 @@ export async function listenForProviderSettingsChanges(
   });
   return { unlisten: subscription.unlisten };
 }
+
+// -- web-side listener --------------------------------------------------------
+//
+// The Next.js server has no single boot point, so the web path can't call
+// `listenForProviderSettingsChanges` the way the worker does. Instead we keep a
+// module-level singleton: the first caller to `startWebProviderSettingsListener`
+// opens the LISTEN, and subsequent calls (e.g. from Next.js dev hot reloads,
+// which re-import modules) return the same handle without double-listening.
+
+export type WebProviderSettingsListenerHandle = {
+  unlisten: () => Promise<void>;
+};
+
+let webListener:
+  | { sql: Sql; handle: WebProviderSettingsListenerHandle }
+  | null = null;
+
+/**
+ * Start the web-side LISTEN on the `provider_settings_changed` channel. On
+ * notification it calls {@link clearProviderCache} so the next request rebuilds
+ * providers from the DB instead of waiting out the 30s TTL.
+ *
+ * Safe for Next.js dev mode: a module re-import does not open a second
+ * subscription. The first call wins; later calls return the same handle. If a
+ * different `sql` instance is passed on a subsequent call (e.g. after the
+ * shared pool was reset), the old subscription is torn down first.
+ */
+export async function startWebProviderSettingsListener(
+  sql: Sql,
+): Promise<WebProviderSettingsListenerHandle> {
+  if (webListener && webListener.sql === sql) {
+    return webListener.handle;
+  }
+  // A new sql instance (or the first ever call): tear down any stale
+  // subscription before opening a fresh one.
+  if (webListener) {
+    await webListener.handle.unlisten().catch(() => {});
+    webListener = null;
+  }
+  const subscription = await sql.listen(PROVIDER_SETTINGS_CHANGED_CHANNEL, () => {
+    clearProviderCache();
+  });
+  const handle: WebProviderSettingsListenerHandle = {
+    unlisten: subscription.unlisten,
+  };
+  webListener = { sql, handle };
+  return handle;
+}
+
+/**
+ * Test seam: tear down the singleton listener and reset module state so a
+ * fresh testcontainer run doesn't inherit a stale subscription. Not exported
+ * from any public entry point.
+ */
+export async function resetWebProviderSettingsListenerForTests(): Promise<void> {
+  if (webListener) {
+    await webListener.handle.unlisten().catch(() => {});
+    webListener = null;
+  }
+}
+
+/**
+ * Test seam: synchronously report whether the provider cache is populated.
+ * Used by the integration test to observe NOTIFY-driven invalidation without
+ * an async probe (the listener clears the cache synchronously on notify).
+ */
+export function __cacheProbeForTests(): boolean {
+  return cache !== null;
+}
